@@ -1,0 +1,18 @@
+{
+  "$description": "Synapse typography tokens — font families from Cerebro_frontend layout.tsx (next/font: Open Sans → --font-sans, JetBrains Mono → --font-mono) and the --text-* scale from globals.css. DTCG W3C format.",
+  "fontFamily": {
+    "sans": { "$value": "Open Sans",      "$type": "fontFamily", "$description": "UI sans — body, nav, labels, forms. Loaded via next/font as --font-sans." },
+    "mono": { "$value": "JetBrains Mono", "$type": "fontFamily", "$description": "Monospace — IDs, metrics, code, data tables. Loaded via next/font as --font-mono." }
+  },
+  "fontSize": {
+    "xs":   { "$value": "12px", "$type": "dimension", "$description": "globals.css --text-xs — captions, table mono text" },
+    "sm":   { "$value": "14px", "$type": "dimension", "$description": "globals.css --text-sm — default body size" },
+    "base": { "$value": "16px", "$type": "dimension", "$description": "globals.css --text-base" },
+    "md":   { "$value": "15px", "$type": "dimension", "$description": "globals.css --text-md — TailAdmin intermediate size (between sm and base)" },
+    "lg":   { "$value": "18px", "$type": "dimension", "$description": "globals.css --text-lg" },
+    "xl":   { "$value": "20px", "$type": "dimension", "$description": "globals.css --text-xl" },
+    "2xl":  { "$value": "24px", "$type": "dimension", "$description": "globals.css --text-2xl — page titles" },
+    "3xl":  { "$value": "30px", "$type": "dimension", "$description": "globals.css --text-3xl" },
+    "4xl":  { "$value": "36px", "$type": "dimension", "$description": "globals.css --text-4xl" }
+  }
+}

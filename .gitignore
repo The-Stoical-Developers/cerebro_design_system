@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+**/dist/
+storybook-static/
+**/storybook-static/
+*.tsbuildinfo
+
+# Environment
+.env

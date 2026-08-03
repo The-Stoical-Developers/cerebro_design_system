@@ -1,0 +1,13 @@
+{
+  "$description": "Synapse glass/frosted surface tokens — defines the `.glass` utility class that Cerebro_frontend uses (Card/GlassPanel) but never defined. Values are DESIGNED (not extracted): a dark-first translucent surface derived from the TailAdmin dark palette, per the Synapse dark-first ops UI. Structure inspired by wedded's tokens/primitives/glass.json.",
+  "glass": {
+    "bg":     { "$value": "rgba(36, 48, 63, 0.72)",  "$type": "color",     "$description": "Translucent surface tint — boxdark #24303F at 72% opacity over the dark theme" },
+    "border": { "$value": "rgba(174, 183, 192, 0.14)", "$type": "color",   "$description": "Hairline glass edge — bodydark #AEB7C0 at 14% opacity" },
+    "blur":   { "$value": "12px", "$type": "dimension", "$description": "Backdrop blur radius for glass surfaces" },
+    "shadow": {
+      "$type": "shadow",
+      "$description": "Soft elevation under glass panels",
+      "$value": { "color": "rgba(0, 0, 0, 0.24)", "offsetX": "0px", "offsetY": "8px", "blur": "24px", "spread": "0px" }
+    }
+  }
+}

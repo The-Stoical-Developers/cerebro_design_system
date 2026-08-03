@@ -1,0 +1,43 @@
+{
+  "$description": "Synapse brand semantic tokens — light mode. Extracted from Cerebro_frontend globals.css :root block. References primitives from tokens/primitives/color.json where a palette entry exists; literal hex otherwise. primarySurface/primaryBorder are NEW tokens (used by the frontend but never defined) — soft tints derived from primary #3C50E0. dark.json defines the same keys; both compile in separate passes.",
+  "brand": {
+    "color": {
+      "bg":              { "$value": "{color.whiten}", "$type": "color", "$description": "Page background (globals.css --color-bg)" },
+      "surface":         { "$value": "{color.white}",  "$type": "color", "$description": "Card/panel surface (--color-surface)" },
+      "surfaceElevated": { "$value": "{color.white}",  "$type": "color", "$description": "Elevated surface — popovers, dropdowns (--color-surface-elevated)" },
+      "surfaceHover":    { "$value": "{color.gray.2}", "$type": "color", "$description": "Surface hover state (--color-surface-hover)" },
+
+      "sidebar": {
+        "bg":         { "$value": "{color.white}",   "$type": "color", "$description": "Sidebar background (--color-sidebar-bg)" },
+        "text":       { "$value": "{color.body}",    "$type": "color", "$description": "Sidebar item text (--color-sidebar-text)" },
+        "textActive": { "$value": "{color.primary}", "$type": "color", "$description": "Sidebar active item text (--color-sidebar-text-active)" },
+        "icon":       { "$value": "{color.body}",    "$type": "color", "$description": "Sidebar icon color (--color-sidebar-icon)" },
+        "border":     { "$value": "{color.stroke}",  "$type": "color", "$description": "Sidebar border (--color-sidebar-border)" }
+      },
+
+      "border":       { "$value": "{color.stroke}",  "$type": "color", "$description": "Default border (--color-border)" },
+      "borderSubtle": { "$value": "{color.whiten}",  "$type": "color", "$description": "Subtle border / internal dividers (--color-border-subtle)" },
+      "borderStrong": { "$value": "#CBD5E0",         "$type": "color", "$description": "Strong border — focus, emphasis (--color-border-strong); not in the TailAdmin palette, literal from globals.css" },
+
+      "text": {
+        "1": { "$value": "{color.black.DEFAULT}", "$type": "color", "$description": "Primary text (--color-text-1)" },
+        "2": { "$value": "{color.body}",          "$type": "color", "$description": "Secondary text (--color-text-2)" },
+        "3": { "$value": "{color.bodydark2}",     "$type": "color", "$description": "Muted / tertiary text (--color-text-3)" },
+        "4": { "$value": "{color.bodydark}",      "$type": "color", "$description": "Faint / placeholder text (--color-text-4)" }
+      },
+
+      "primary":        { "$value": "{color.primary}",   "$type": "color", "$description": "Primary brand action color (--color-primary)" },
+      "primaryHover":   { "$value": "#3346C0",           "$type": "color", "$description": "Primary hover/pressed (--color-primary-hover); literal from globals.css" },
+      "primarySurface": { "$value": "#EEF1FD",           "$type": "color", "$description": "NEW — soft primary tint surface (--color-primary-surface); derived from primary #3C50E0 for light mode" },
+      "primaryBorder":  { "$value": "#C7D0F5",           "$type": "color", "$description": "NEW — soft primary border (--color-primary-border); derived from primary #3C50E0 for light mode" },
+      "success":        { "$value": "{color.success}",   "$type": "color", "$description": "Success green (--color-success)" },
+      "danger":         { "$value": "{color.danger}",    "$type": "color", "$description": "Danger red (--color-danger)" },
+      "warning":        { "$value": "{color.warning}",   "$type": "color", "$description": "Warning amber (--color-warning)" },
+      "secondary":      { "$value": "{color.secondary}", "$type": "color", "$description": "Secondary accent (--color-secondary)" }
+    },
+    "scrollbar": {
+      "thumb":      { "$value": "#CBD5E0",         "$type": "color", "$description": "Scrollbar thumb (--scrollbar-thumb); literal from globals.css" },
+      "thumbHover": { "$value": "{color.bodydark2}", "$type": "color", "$description": "Scrollbar thumb hover (--scrollbar-thumb-hover)" }
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "$description": "Synapse component tone tokens — extracted verbatim from Cerebro_frontend src/components/ui/design-tokens.ts (TONE_MAP). Used by Badge, MetricCell, etc. Each tone carries a text/accent color, a soft oklch background, and an inset ring (box-shadow string).",
+  "tone": {
+    "emerald": {
+      "color": { "$value": "#059669", "$type": "color", "$description": "Emerald accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.03 160)", "$type": "color", "$description": "Emerald soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.09 160)", "$type": "shadow", "$description": "Emerald inset ring (full box-shadow string)" }
+    },
+    "cyan": {
+      "color": { "$value": "#0891b2", "$type": "color", "$description": "Cyan accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.03 210)", "$type": "color", "$description": "Cyan soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.06 210)", "$type": "shadow", "$description": "Cyan inset ring (full box-shadow string)" }
+    },
+    "amber": {
+      "color": { "$value": "#b45309", "$type": "color", "$description": "Amber accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.06 80)", "$type": "color", "$description": "Amber soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.1 80)", "$type": "shadow", "$description": "Amber inset ring (full box-shadow string)" }
+    },
+    "red": {
+      "color": { "$value": "#dc2626", "$type": "color", "$description": "Red accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.03 25)", "$type": "color", "$description": "Red soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.08 25)", "$type": "shadow", "$description": "Red inset ring (full box-shadow string)" }
+    },
+    "violet": {
+      "color": { "$value": "#7c3aed", "$type": "color", "$description": "Violet accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.03 290)", "$type": "color", "$description": "Violet soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.07 290)", "$type": "shadow", "$description": "Violet inset ring (full box-shadow string)" }
+    },
+    "sky": {
+      "color": { "$value": "#0284c7", "$type": "color", "$description": "Sky accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.03 225)", "$type": "color", "$description": "Sky soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.06 225)", "$type": "shadow", "$description": "Sky inset ring (full box-shadow string)" }
+    },
+    "rose": {
+      "color": { "$value": "#e11d48", "$type": "color", "$description": "Rose accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.03 10)", "$type": "color", "$description": "Rose soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.07 10)", "$type": "shadow", "$description": "Rose inset ring (full box-shadow string)" }
+    },
+    "indigo": {
+      "color": { "$value": "#4f46e5", "$type": "color", "$description": "Indigo accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.02 265)", "$type": "color", "$description": "Indigo soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.07 265)", "$type": "shadow", "$description": "Indigo inset ring (full box-shadow string)" }
+    },
+    "orange": {
+      "color": { "$value": "#ea580c", "$type": "color", "$description": "Orange accent text/icon color" },
+      "bg":    { "$value": "oklch(0.97 0.05 55)", "$type": "color", "$description": "Orange soft background" },
+      "ring":  { "$value": "inset 0 0 0 1px oklch(0.85 0.1 55)", "$type": "shadow", "$description": "Orange inset ring (full box-shadow string)" }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$description": "Synapse motion duration tokens — extracted from Cerebro_frontend globals.css (.spin) and tailwind.config.ts theme.extend.animation. Curves (e.g. cubic-bezier(0.4,0,0.2,1) on easespin/spins) are not expressible in DTCG and stay hand-crafted in CSS. Decorative dashboard keyframes (rotating, topbottom, bottomtop, line1–3) intentionally omitted.",
+  "motion": {
+    "spin":      { "$value": "700ms",      "$type": "duration", "$description": "Inline spinner (globals.css .spin — 0.7s linear infinite)" },
+    "spin15":    { "$value": "1500ms",     "$type": "duration", "$description": "TailAdmin animation spin-1.5" },
+    "spin2":     { "$value": "2000ms",     "$type": "duration", "$description": "TailAdmin animation spin-2" },
+    "spin3":     { "$value": "3000ms",     "$type": "duration", "$description": "TailAdmin animation spin-3" },
+    "linspin":   { "$value": "1568.2353ms", "$type": "duration", "$description": "TailAdmin animation linspin (material-style loader rotation)" },
+    "easespin":  { "$value": "5332ms",     "$type": "duration", "$description": "TailAdmin animation easespin — curve cubic-bezier(0.4, 0, 0.2, 1)" },
+    "leftSpin":  { "$value": "1333ms",     "$type": "duration", "$description": "TailAdmin animation left-spin — curve cubic-bezier(0.4, 0, 0.2, 1)" },
+    "rightSpin": { "$value": "1333ms",     "$type": "duration", "$description": "TailAdmin animation right-spin — curve cubic-bezier(0.4, 0, 0.2, 1)" },
+    "pingOnce":  { "$value": "5000ms",     "$type": "duration", "$description": "TailAdmin animation ping-once — single ping, 5s" }
+  }
+}

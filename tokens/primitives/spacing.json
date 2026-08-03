@@ -1,0 +1,24 @@
+{
+  "$description": "Synapse spacing tokens. Layout vars extracted from Cerebro_frontend globals.css (--sidebar-w, --sidebar-w-collapsed, --topbar-h). scale.* is a curated subset of the Tailwind default spacing scale — the ~100 fractional TailAdmin values (4.5…242.5 in tailwind.config.ts) are intentionally NOT ported.",
+  "spacing": {
+    "sidebar": {
+      "w":          { "$value": "290px", "$type": "dimension", "$description": "Expanded sidebar width (globals.css --sidebar-w)" },
+      "wCollapsed": { "$value": "90px",  "$type": "dimension", "$description": "Collapsed sidebar width (globals.css --sidebar-w-collapsed)" }
+    },
+    "topbar": {
+      "h": { "$value": "70px", "$type": "dimension", "$description": "Topbar height (globals.css --topbar-h)" }
+    },
+    "scale": {
+      "1":  { "$value": "4px",  "$type": "dimension", "$description": "Tailwind spacing 1 (0.25rem)" },
+      "2":  { "$value": "8px",  "$type": "dimension", "$description": "Tailwind spacing 2 (0.5rem)" },
+      "3":  { "$value": "12px", "$type": "dimension", "$description": "Tailwind spacing 3 (0.75rem)" },
+      "4":  { "$value": "16px", "$type": "dimension", "$description": "Tailwind spacing 4 (1rem)" },
+      "5":  { "$value": "20px", "$type": "dimension", "$description": "Tailwind spacing 5 (1.25rem)" },
+      "6":  { "$value": "24px", "$type": "dimension", "$description": "Tailwind spacing 6 (1.5rem)" },
+      "8":  { "$value": "32px", "$type": "dimension", "$description": "Tailwind spacing 8 (2rem)" },
+      "10": { "$value": "40px", "$type": "dimension", "$description": "Tailwind spacing 10 (2.5rem)" },
+      "12": { "$value": "48px", "$type": "dimension", "$description": "Tailwind spacing 12 (3rem)" },
+      "16": { "$value": "64px", "$type": "dimension", "$description": "Tailwind spacing 16 (4rem)" }
+    }
+  }
+}

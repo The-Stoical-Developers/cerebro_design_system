@@ -1,0 +1,13 @@
+{
+  "name": "@cerebro/design-system-build",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node sd.config.mjs",
+    "build:synapse": "node sd.config.mjs --brand=synapse"
+  },
+  "dependencies": {
+    "style-dictionary": "^4.0.0"
+  }
+}
