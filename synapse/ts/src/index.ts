@@ -16,5 +16,11 @@ export * from './generated/tokens/synapse_brand_dark.js';
 // ── Hand-crafted token helpers (ToneKey, DotStatus, tone()) ──────────────────
 export * from './tokens/index.js';
 
+// ── Hooks ─────────────────────────────────────────────────────────────────────
+export * from './hooks/useColorMode.js';
+export * from './hooks/useLocalStorage.js';
+export * from './hooks/useMounted.js';
+export * from './hooks/useSidebarToggle.js';
+
 // ── Utils ─────────────────────────────────────────────────────────────────────
 export * from './lib/cn.js';
