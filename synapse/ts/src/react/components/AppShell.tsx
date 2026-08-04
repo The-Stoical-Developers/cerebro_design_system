@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSidebarToggle } from "../../hooks/useSidebarToggle";
+import { SidebarProvider, useSidebarToggle } from "../../hooks/useSidebarToggle";
 import { cn } from "../../lib/cn";
 
 export interface AppShellProps {
@@ -11,7 +11,7 @@ export interface AppShellProps {
   className?: string;
 }
 
-export function AppShell({ sidebar, topbar, children, className }: AppShellProps) {
+function AppShellLayout({ sidebar, topbar, children, className }: AppShellProps) {
   const { sidebarOpen } = useSidebarToggle();
 
   return (
@@ -33,5 +33,13 @@ export function AppShell({ sidebar, topbar, children, className }: AppShellProps
         <main className="flex-1 px-4 py-6 md:px-6 2xl:px-11">{children}</main>
       </div>
     </div>
+  );
+}
+
+export function AppShell(props: AppShellProps) {
+  return (
+    <SidebarProvider>
+      <AppShellLayout {...props} />
+    </SidebarProvider>
   );
 }
