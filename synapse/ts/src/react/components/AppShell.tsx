@@ -25,7 +25,7 @@ function AppShellLayout({ sidebar, topbar, children, className }: AppShellProps)
 
       <div
         className={cn(
-          "relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden transition-all duration-200",
+          "relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden transition-all duration-200 ease-in-out",
           sidebarOpen ? "ml-64" : "ml-16",
         )}
       >
