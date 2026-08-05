@@ -24,6 +24,7 @@
     "./tailwind.preset": "./tailwind.preset.cjs"
   },
   "scripts": {
+    "prepare": "npm run build",
     "build": "tsc --project tsconfig.build.json",
     "test": "vitest run",
     "test:watch": "vitest",

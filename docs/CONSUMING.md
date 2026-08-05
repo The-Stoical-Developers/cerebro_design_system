@@ -1,20 +1,37 @@
 # Consuming `@cerebro/synapse`
 
-> **Note:** integration with `Cerebro_frontend` is a follow-up phase. This document
-> describes how a consumer (Next.js, Vite, etc.) will use the package once it is wired.
+`Cerebro_frontend` already consumes this package (see `package.json`). This document
+describes the current integration mechanism.
 
 ## Install
 
-Install from the git monorepo using the `path:` sub-package syntax. Replace
-`<tag>` with the desired release tag or commit SHA.
+The package is consumed via a local `file:` dependency, not the npm registry and not a
+git submodule. This **requires `cerebro_design_system` to be checked out as a sibling
+directory** next to the consuming repo (both under the same parent folder), e.g.:
 
-```bash
-npm install 'github:The-Stoical-Developers/cerebro_design_system#<tag>&path:synapse/ts'
-# or with pnpm
-pnpm add 'github:The-Stoical-Developers/cerebro_design_system#<tag>&path:synapse/ts'
+```
+Repos/
+├── Cerebro_frontend/
+└── cerebro_design_system/
 ```
 
-The `prepare` script runs `tsc` and builds `dist/` automatically on install.
+Add it to the consumer's `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@cerebro/synapse": "file:../cerebro_design_system/synapse/ts"
+  }
+}
+```
+
+Then run `npm install`. The `prepare` script (`npm run build`, which runs
+`tsc --project tsconfig.build.json`) executes automatically during install and
+builds `dist/`.
+
+> **Not yet implemented:** installing directly from GitHub with the
+> `github:<org>/cerebro_design_system#<tag>&path:synapse/ts` syntax. No consumer in
+> this codebase uses that mechanism today; do not rely on it until it is set up.
 
 ## Tailwind setup
 
@@ -76,17 +93,10 @@ console.log(SynapseColors.primary); // #3C50E0
 
 ## Docker / CI builds
 
-The package is fetched from GitHub, so the build stage needs `git` and a token if
-the repository is private. Example Dockerfile fragment:
-
-```dockerfile
-RUN apk add --no-cache git
-RUN --mount=type=secret,id=gh_token \
-    git config --global url."https://x-access-token:$(cat /run/secrets/gh_token)@github.com/".insteadOf "git@github.com:" && \
-    npm install --legacy-peer-deps
-```
-
-Build with: `docker build --secret id=gh_token,src=<(echo $GH_TOKEN) .`
+Because the dependency is a local `file:` reference to a sibling directory, the
+`cerebro_design_system` checkout must be present in the Docker build context (or
+otherwise copied in) alongside the consumer's source before `npm install` runs.
+There is no GitHub fetch involved.
 
 ## Flutter
 
