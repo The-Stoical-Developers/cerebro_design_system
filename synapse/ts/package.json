@@ -21,7 +21,8 @@
       "types": "./dist/react/index.d.ts"
     },
     "./synapse_theme.css": "./src/generated/css/synapse_theme.css",
-    "./tailwind.preset": "./tailwind.preset.cjs"
+    "./tailwind.preset": "./tailwind.preset.cjs",
+    "./tailwind.preset.cjs": "./tailwind.preset.cjs"
   },
   "scripts": {
     "prepare": "npm run build",
