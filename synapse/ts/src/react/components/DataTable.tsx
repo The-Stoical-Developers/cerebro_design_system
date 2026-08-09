@@ -30,6 +30,14 @@ export interface DataTableProps<T> {
   highlightRow?: (row: T) => boolean;
   emptyMessage?: string;
   defaultSort?: { key: string; dir: "asc" | "desc" };
+  /**
+   * Bounds the table's own scroll area (e.g. "calc(100vh - 260px)") so row
+   * scrolling and the horizontal scrollbar stay confined to this element
+   * instead of pushing the horizontal scrollbar below the last row of a long
+   * table. When omitted, the table grows to fit its content (previous
+   * behaviour, unaffected for existing consumers).
+   */
+  maxHeight?: string;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -42,6 +50,7 @@ function DataTableInner<T>({
   highlightRow,
   emptyMessage = "No rows",
   defaultSort,
+  maxHeight,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<SortState>(defaultSort ?? null);
   const [filters, setFilters] = useState<FilterState>({});
@@ -109,7 +118,10 @@ function DataTableInner<T>({
           </button>
         </div>
       )}
-      <div className="w-full overflow-x-auto">
+      <div
+        className={cn("w-full overflow-x-auto", maxHeight && "overflow-y-auto")}
+        style={maxHeight ? { maxHeight } : undefined}
+      >
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
