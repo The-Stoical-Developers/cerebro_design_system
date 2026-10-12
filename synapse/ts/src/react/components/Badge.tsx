@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/cn";
-import { tone, type ToneKey } from "../../tokens";
+import { toneVars, type ToneKey } from "../../tokens";
 
 // CVA shim kept for consumers that import badgeVariants directly.
 const badgeVariants = cva(
@@ -33,7 +33,7 @@ export interface BadgeProps
 
 function Badge({ className, variant, tone: toneProp, style, ...props }: BadgeProps) {
   if (toneProp) {
-    const t = tone(toneProp);
+    const t = toneVars(toneProp);
     return (
       <span
         className={cn(
