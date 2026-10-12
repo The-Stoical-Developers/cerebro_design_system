@@ -4,20 +4,34 @@
  * ToneKey  – colour palette identifiers used by Badge, MetricCell, etc.
  * DotStatus – semantic states used by StatusDot.
  * tone()   – maps a ToneKey to concrete colour values.
+ *
+ * Tone values are NOT defined here: they come from the Style Dictionary
+ * output (generated/tokens/synapse_tones.ts, built from
+ * tokens/components/tones.json), which is the single source of truth.
  */
+import { SynapseTones } from "../generated/tokens/synapse_tones.js";
 
-export type ToneKey =
-  | "emerald"
-  | "cyan"
-  | "amber"
-  | "red"
-  | "violet"
-  | "sky"
-  | "rose"
-  | "indigo"
-  | "orange";
+export const TONE_KEYS = [
+  "emerald",
+  "cyan",
+  "amber",
+  "red",
+  "violet",
+  "sky",
+  "rose",
+  "indigo",
+  "orange",
+] as const;
 
-export type DotStatus = "idle" | "queued" | "running" | "done" | "error";
+export type ToneKey = (typeof TONE_KEYS)[number];
+
+export const DOT_STATUSES = ["idle", "queued", "running", "done", "error"] as const;
+
+export type DotStatus = (typeof DOT_STATUSES)[number];
+
+export function isDotStatus(value: unknown): value is DotStatus {
+  return typeof value === "string" && (DOT_STATUSES as readonly string[]).includes(value);
+}
 
 export interface ToneValues {
   color: string;
@@ -25,54 +39,30 @@ export interface ToneValues {
   ring: string;
 }
 
-const TONE_MAP: Record<ToneKey, ToneValues> = {
-  emerald: {
-    color: "#059669",
-    bg: "oklch(0.97 0.03 160)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.09 160)",
-  },
-  cyan: {
-    color: "#0891b2",
-    bg: "oklch(0.97 0.03 210)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.06 210)",
-  },
-  amber: {
-    color: "#b45309",
-    bg: "oklch(0.97 0.06 80)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.1 80)",
-  },
-  red: {
-    color: "#dc2626",
-    bg: "oklch(0.97 0.03 25)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.08 25)",
-  },
-  violet: {
-    color: "#7c3aed",
-    bg: "oklch(0.97 0.03 290)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.07 290)",
-  },
-  sky: {
-    color: "#0284c7",
-    bg: "oklch(0.97 0.03 225)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.06 225)",
-  },
-  rose: {
-    color: "#e11d48",
-    bg: "oklch(0.97 0.03 10)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.07 10)",
-  },
-  indigo: {
-    color: "#4f46e5",
-    bg: "oklch(0.97 0.02 265)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.07 265)",
-  },
-  orange: {
-    color: "#ea580c",
-    bg: "oklch(0.97 0.05 55)",
-    ring: "inset 0 0 0 1px oklch(0.85 0.1 55)",
-  },
-};
+function generatedTone(key: ToneKey): ToneValues {
+  return {
+    color: SynapseTones[`${key}Color`],
+    bg: SynapseTones[`${key}Bg`],
+    ring: SynapseTones[`${key}Ring`],
+  };
+}
 
+/** Concrete (light) colour values for a tone, from the generated tokens. */
 export function tone(key: ToneKey): ToneValues {
-  return TONE_MAP[key] ?? TONE_MAP.cyan;
+  return (TONE_KEYS as readonly string[]).includes(key) ? generatedTone(key) : generatedTone("cyan");
+}
+
+/**
+ * Theme-aware tone values: references to the `--tone-*` CSS custom
+ * properties emitted in synapse_theme.css (so `.dark` overrides apply),
+ * with the generated value as fallback when the theme CSS is not loaded.
+ */
+export function toneVars(key: ToneKey): ToneValues {
+  const k = (TONE_KEYS as readonly string[]).includes(key) ? key : "cyan";
+  const fb = generatedTone(k);
+  return {
+    color: `var(--tone-${k}-color, ${fb.color})`,
+    bg: `var(--tone-${k}-bg, ${fb.bg})`,
+    ring: `var(--tone-${k}-ring, ${fb.ring})`,
+  };
 }
