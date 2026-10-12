@@ -38,6 +38,10 @@ export interface DataTableProps<T> {
    * behaviour, unaffected for existing consumers).
    */
   maxHeight?: string;
+  /** Number the visible rows after sorting and filtering. */
+  showRowNumbers?: boolean;
+  /** Keep the visible/total count shown even without active filters. */
+  showRowCount?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -51,6 +55,8 @@ function DataTableInner<T>({
   emptyMessage = "No rows",
   defaultSort,
   maxHeight,
+  showRowNumbers = false,
+  showRowCount = false,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<SortState>(defaultSort ?? null);
   const [filters, setFilters] = useState<FilterState>({});
@@ -108,14 +114,14 @@ function DataTableInner<T>({
       className="overflow-hidden rounded-xl"
       style={{ border: "1px solid var(--color-border)", background: "color-mix(in oklab, var(--color-surface) 55%, transparent)" }}
     >
-      {hasActiveFilters && (
+      {(hasActiveFilters || showRowCount) && (
         <div className="flex items-center gap-3 px-4 py-2 font-mono text-[11px] text-text-2"
           style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
           <span>{sorted.length} of {rows.length}</span>
-          <button type="button" onClick={() => setFilters({})}
+          {hasActiveFilters && <button type="button" onClick={() => setFilters({})}
             className="cursor-pointer border-0 bg-transparent p-0 text-hud-cyan hover:underline" style={{ font: "inherit" }}>
             clear filters
-          </button>
+          </button>}
         </div>
       )}
       <div
@@ -125,6 +131,7 @@ function DataTableInner<T>({
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
+              {showRowNumbers && <th scope="col" aria-label="Row number" className="sticky top-0 z-10 px-4 py-3 font-mono text-text-3" style={{ background: "var(--color-surface)", borderBottom: "1px solid var(--color-border-strong)" }}>#</th>}
               {columns.map((col) => {
                 const sortActive = sort?.key === col.key;
                 const sortArrow = sortActive ? (sort!.dir === "asc" ? "↑" : "↓") : "↕";
@@ -180,12 +187,12 @@ function DataTableInner<T>({
           <tbody>
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-14 text-center text-sm text-text-2">
+                <td colSpan={columns.length + (showRowNumbers ? 1 : 0)} className="px-4 py-14 text-center text-sm text-text-2">
                   {emptyMessage}
                 </td>
               </tr>
             )}
-            {sorted.map((row) => {
+            {sorted.map((row, rowIndex) => {
               const isHighlighted = highlightRow?.(row);
               return (
                 <tr
@@ -198,6 +205,7 @@ function DataTableInner<T>({
                     "hover:bg-hud-cyan/[0.06]"
                   )}
                 >
+                  {showRowNumbers && <td className="px-4 py-3 align-middle font-mono text-text-3" style={{ borderBottom: "1px solid var(--color-border-subtle)" }}>{rowIndex + 1}</td>}
                   {columns.map((col, ci) => (
                     <td key={col.key}
                       className={cn("px-4 py-3 align-middle", ci === 0 ? "text-text-1" : "text-text-2")}

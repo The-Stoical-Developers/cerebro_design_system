@@ -1,0 +1,30 @@
+import React from "react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { expect, it, vi } from "vitest";
+import { DataTable } from "../DataTable";
+const rows = [{ id: "b", name: "Beta" }, { id: "a", name: "Alpha" }];
+const columns = [{ key: "name", header: "Name", accessor: (r: typeof rows[number]) => r.name, filterType: "text" as const }];
+it("numbers the displayed order and recomputes ordinals after sorting, filtering and clearing", () => {
+ const click = vi.fn();
+ render(<DataTable columns={columns} rows={rows} rowKey={r => r.id} defaultSort={{key:"name",dir:"asc"}} showRowNumbers showRowCount onRowClick={click}/>);
+ const bodyRows = () => screen.getAllByRole("row").slice(1).map(r => within(r).getAllByRole("cell").map(c => c.textContent));
+ expect(bodyRows()).toEqual([["1","Alpha"],["2","Beta"]]);
+ expect(screen.getByText("2 of 2")).toBeVisible();
+ fireEvent.click(screen.getByRole("button",{name:/Name/}));
+ expect(bodyRows()).toEqual([["1","Beta"],["2","Alpha"]]);
+ fireEvent.click(screen.getByRole("button",{name:"Filter"}));
+ fireEvent.change(screen.getByPlaceholderText("contains…"),{target:{value:"Alpha"}});
+ expect(bodyRows()).toEqual([["1","Alpha"]]);
+ expect(screen.getByText("1 of 2")).toBeVisible();
+ fireEvent.click(screen.getByText("Alpha")); expect(click).toHaveBeenCalledWith(rows[1]);
+ fireEvent.click(screen.getByRole("button",{name:"clear filters"}));
+ expect(bodyRows()).toEqual([["1","Beta"],["2","Alpha"]]);
+});
+it("preserves default consumers and spans the added ordinal when empty", () => {
+ const {rerender} = render(<DataTable columns={columns} rows={rows} rowKey={r=>r.id}/>);
+ expect(screen.queryByText("2 of 2")).not.toBeInTheDocument();
+ expect(screen.getAllByRole("columnheader")).toHaveLength(1);
+ rerender(<DataTable columns={columns} rows={[]} rowKey={r=>r.id} showRowNumbers showRowCount/>);
+ expect(screen.getByText("0 of 0")).toBeVisible();
+ expect(screen.getByRole("cell",{name:"No rows"})).toHaveAttribute("colspan","2");
+});
