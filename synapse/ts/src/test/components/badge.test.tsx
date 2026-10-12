@@ -45,4 +45,12 @@ describe("SynBadge", () => {
     expect(typeof cls).toBe("string");
     expect(cls.length).toBeGreaterThan(0);
   });
+
+  it("tone badge uses theme CSS variables (dark-mode aware)", () => {
+    render(<SynBadge tone="emerald">Ok</SynBadge>);
+    const el = screen.getByText("Ok");
+    expect(el.style.color).toContain("var(--tone-emerald-color");
+    expect(el.style.background).toContain("var(--tone-emerald-bg");
+    expect(el.style.boxShadow).toContain("var(--tone-emerald-ring");
+  });
 });
