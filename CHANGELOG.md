@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.0.2...v1.1.0) (2026-10-13)
+
+
+### Features
+
+* **synapse:** NeuralClusters — five talking clusters (agents hierarchy, read/write tools, MCP, connections with offline brand logos), real-event pulses, active-only fading labels ([33a6ce6](https://github.com/The-Stoical-Developers/cerebro_design_system/commit/33a6ce647629e404253a04f0648fb4122b93d52e))
+
 ## [1.0.2](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.0.1...v1.0.2) (2026-10-13)
 
 
