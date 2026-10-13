@@ -54,3 +54,18 @@ describe('agent selection', () => {
     fireEvent.click(getByLabelText(/Cerrar/)); expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe('ver ficha', () => {
+  it('panel shows a "ver ficha" link that only opens on explicit click; parent/children stay in-graph', () => {
+    const onSelect = vi.fn(); const onOpen = vi.fn();
+    const { getByTestId, getByText } = render(<AgentPanel info={agentNeighborhood('d1', nodes)} onSelect={onSelect} onClose={() => {}} href="/agents/d1" onOpen={onOpen} />);
+    const a = getByTestId('ver-ficha');
+    expect(a.getAttribute('href')).toBe('/agents/d1'); expect(a.getAttribute('aria-label')).toBe('Ver ficha de Dir');
+    fireEvent.click(getByText(/CMO/)); expect(onSelect).toHaveBeenCalledWith('c1'); expect(onOpen).not.toHaveBeenCalled();
+    fireEvent.click(a); expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 'd1' }));
+  });
+  it('no button without href/callback', () => {
+    const { queryByTestId } = render(<AgentPanel info={agentNeighborhood('d1', nodes)} onSelect={() => {}} onClose={() => {}} />);
+    expect(queryByTestId('ver-ficha')).toBeNull();
+  });
+});
