@@ -8,3 +8,5 @@ export * from './Timelines';
 export * from './Approvals';
 export * from './NeuralNet';
 export * from './Mascot';
+export * from './NeuralClusters';
+export * from './brandLogos';
