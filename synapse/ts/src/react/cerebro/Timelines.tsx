@@ -1,3 +1,5 @@
+"use client";
+
 import { motion } from 'framer-motion';
 export type RunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'waiting' | 'cancelled';
 const COL: Record<RunStatus, string> = { queued: 'var(--g-text-3)', running: 'var(--g-info)', succeeded: 'var(--g-success)', failed: 'var(--g-danger)', waiting: 'var(--g-warning)', cancelled: 'var(--g-text-3)' };

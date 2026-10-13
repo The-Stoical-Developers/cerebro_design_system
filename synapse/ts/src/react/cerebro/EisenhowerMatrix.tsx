@@ -1,3 +1,5 @@
+"use client";
+
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import type { Quadrant } from './bus';
 export interface MatrixTask { id: string; title: string; urgent: boolean; important: boolean; meta?: string; fresh?: boolean; onClick?: () => void }

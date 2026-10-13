@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from 'react';
 import { cerebroBus, type CerebroBus } from './bus';
 /** Ring index: 0 core · 1 business case · 2 use case · 3 agent · 4 tool. */

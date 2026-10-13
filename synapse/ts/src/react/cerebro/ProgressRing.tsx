@@ -1,3 +1,5 @@
+"use client";
+
 import { motion } from 'framer-motion';
 export interface ProgressRingProps { value: number; size?: number; stroke?: number; color?: string; label?: string; children?: React.ReactNode }
 /** Animated circular progress (0..1). */

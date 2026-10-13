@@ -1,3 +1,5 @@
+"use client";
+
 import { Odometer } from '@the-stoical-developers/ds-glass/react';
 export interface KpiCardProps { label: string; value: number; decimals?: number; suffix?: string; delta?: number; deltaLabel?: string; spark?: number[]; tone?: 'accent' | 'info' | 'success' | 'warning' | 'danger' }
 export function Sparkline({ data, color = 'var(--g-accent)', width = 120, height = 32 }: { data: number[]; color?: string; width?: number; height?: number }) {
