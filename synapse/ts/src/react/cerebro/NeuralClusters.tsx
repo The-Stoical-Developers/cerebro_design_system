@@ -19,6 +19,9 @@ export interface ClusterNode {
   parentId?: string | null;
   /** Agents cluster only: agent outside the org hierarchy (no parent, not the root). Drawn apart, never on a ring. */
   detached?: boolean;
+  /** Agents: org role label (e.g. "Director") and status (e.g. "activo", "archivado") shown in the side panel. */
+  role?: string;
+  status?: string;
   /** Dimmed (e.g. archived org positions kept only to show the structure). */
   muted?: boolean;
   /** Free-form subtitle shown in the tooltip (role, transport, type…). */
