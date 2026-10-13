@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.3.0...v1.4.0) (2026-10-13)
+
+
+### Features
+
+* **synapse): Cerebro favicon set (adaptive SVG, PNGs, manifest); fix(neural3d:** DOM label overlay instead of drei Html (removeChild error) ([5098070](https://github.com/The-Stoical-Developers/cerebro_design_system/commit/509807024748cb403620e93f02de756fa9f7a0d0))
+
 # [1.3.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.2.0...v1.3.0) (2026-10-13)
 
 
