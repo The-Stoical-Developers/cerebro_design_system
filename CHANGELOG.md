@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.1](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.0.0...v1.0.1) (2026-10-13)
+
+### Bug Fixes
+
+* **synapse:** mark Cerebro components as client components so Next server pages can import the barrel (#3)
+
 ## 1.0.0 (2026-10-13)
 
 ### Features
