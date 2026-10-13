@@ -47,3 +47,26 @@ cd synapse/ts
 npm install
 npm run storybook
 ```
+
+## Glass Pro (2026-10) — built on TSD
+
+`@cerebro/synapse` now builds on **`@the-stoical-developers/ds-glass`** (TSD generic Glass Pro language: tokens, themes `glasspro`/`glass`/`aurora`, motion primitives).
+Cerebro-specific components live in `synapse/ts/src/react/cerebro` (exported from `@cerebro/synapse/react` and `@cerebro/synapse/cerebro`):
+
+| Component | Purpose |
+|---|---|
+| `Mascot` | three.js glass nucleus + orbiting electrons; mood from bus events (optional peer `three`) |
+| `NeuralNet` | hierarchy rings (core → business cases → use cases → agents → tools) with action-potential cascades |
+| `EisenhowerMatrix` | 4-quadrant task matrix with layout transitions |
+| `AgentCard` / `ProgressRing` / `LogStream` | agent tiles with progress and live logs |
+| `RunTimeline` / `SchedulerTimeline` | run gantt + 24h schedule strip |
+| `ApprovalsList` | HITL approve/reject |
+| `KpiCard` / `Sparkline` | odometer KPIs |
+| `ActivityFeed` | live feed |
+| `cerebroBus` / `createCerebroBus` | real backend events → motion |
+
+CSS: `import '@cerebro/synapse/glass-pro.css'` (re-exports ds-glass). Set `data-glass-theme` on `<html>`.
+
+### Release / publish (same pattern as wedded_design_system)
+semantic-release on `main` (`.releaserc.json`) → tag `vX.Y.Z` + GitHub release → `publish-synapse.yml` publishes to Artifact Registry `europe-southwest1-npm.pkg.dev/wedded-prod/tsd-npm/`.
+Installing requires registry auth: `npx google-artifactregistry-auth@3 --repo-config=.npmrc` (uses gcloud ADC).

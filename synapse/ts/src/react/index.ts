@@ -123,3 +123,6 @@ export type * from './components/Breadcrumb';
 
 export * as SynIcons from './icons';
 export * as Icons from './icons';
+
+// Cerebro Glass Pro components (built on @the-stoical-developers/ds-glass)
+export * from "./cerebro";

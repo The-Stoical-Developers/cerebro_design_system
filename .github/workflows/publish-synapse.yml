@@ -1,0 +1,56 @@
+name: Publish @cerebro/synapse to Artifact Registry
+
+# Mirrors wedded_design_system/publish-vrb.yml: GCP Artifact Registry
+# (tsd-npm, wedded-prod) via Workload Identity Federation. The WIF provider
+# must allow this repository (The-Stoical-Developers/cerebro_design_system).
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Build and publish @cerebro/synapse
+    runs-on: [self-hosted, Linux, X64, ci]
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Force HTTPS for github.com (drop SSH insteadOf)
+        run: |
+          for k in $(git config --global --get-regexp 'url\..*\.insteadof' 2>/dev/null | awk '{print $1}'); do
+            git config --global --unset-all "$k" || true
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: wedded-prod
+          workload_identity_provider: projects/28572557653/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
+          service_account: tsd-npm-publisher@wedded-prod.iam.gserviceaccount.com
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configure npm auth for Artifact Registry
+        run: npx google-artifactregistry-auth@3 --repo-config=synapse/ts/.npmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        working-directory: synapse/ts
+        run: npm run build
+
+      - name: Publish to Artifact Registry
+        working-directory: synapse/ts
+        run: npm publish
