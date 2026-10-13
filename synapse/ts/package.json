@@ -1,6 +1,6 @@
 {
   "name": "@cerebro/synapse",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Synapse design system \u2014 Cerebro operations console, built on TSD Glass Pro (@the-stoical-developers/ds-glass)",
   "main": "dist/index.js",
