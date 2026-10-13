@@ -1,3 +1,5 @@
+"use client";
+
 import { AnimatePresence, motion } from 'framer-motion';
 import { GlassBadge, type GlassTone } from '@the-stoical-developers/ds-glass/react';
 import { ProgressRing } from './ProgressRing';

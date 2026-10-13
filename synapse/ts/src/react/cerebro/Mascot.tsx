@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from 'react';
 import { cerebroBus, MOOD_COLORS, moodForEvent, type CerebroBus, type Mood } from './bus';
 export interface MascotProps {

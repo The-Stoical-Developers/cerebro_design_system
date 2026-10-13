@@ -1,3 +1,5 @@
+"use client";
+
 import { AnimatePresence, motion } from 'framer-motion';
 export interface ActivityItem { id: string; title: string; detail?: string; at: string | number | Date; tone?: 'info' | 'success' | 'warning' | 'danger' | 'accent'; onClick?: () => void }
 export function relTime(at: ActivityItem['at'], now = Date.now()): string {

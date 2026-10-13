@@ -1,3 +1,5 @@
+"use client";
+
 import { AnimatePresence, motion } from 'framer-motion';
 import { GlassButton } from '@the-stoical-developers/ds-glass/react';
 export interface ApprovalItem { id: string; title: string; detail?: string; requestedBy?: string; at?: string | number | Date }
