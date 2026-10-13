@@ -17,6 +17,10 @@ export interface ClusterNode {
   id: string; label: string; cluster: ClusterKind;
   /** Agents cluster only: hierarchy parent (root has none). */
   parentId?: string | null;
+  /** Agents cluster only: agent outside the org hierarchy (no parent, not the root). Drawn apart, never on a ring. */
+  detached?: boolean;
+  /** Dimmed (e.g. archived org positions kept only to show the structure). */
+  muted?: boolean;
   /** Free-form subtitle shown in the tooltip (role, transport, type…). */
   kind?: string;
   /** Service hint for the logo (connection_type, server name). Falls back to initials. */
@@ -57,7 +61,7 @@ const CENTRES: Record<ClusterKind, [number, number]> = {
 
 /** Depth of each agents-cluster node (root = 0). Exported for tests. */
 export function agentLevels(nodes: ClusterNode[]): Map<string, number> {
-  const byId = new Map(nodes.filter((n) => n.cluster === 'agents').map((n) => [n.id, n]));
+  const byId = new Map(nodes.filter((n) => n.cluster === 'agents' && !n.detached).map((n) => [n.id, n]));
   const lv = new Map<string, number>();
   const depth = (id: string, guard = 0): number => {
     if (lv.has(id)) return lv.get(id)!;
@@ -105,7 +109,8 @@ interface Pos { x: number; y: number; r: number }
 export function layoutClusters(nodes: ClusterNode[], W: number, H: number, nodeR = 5): Map<string, Pos> {
   const pos = new Map<string, Pos>();
   const lv = agentLevels(nodes); const maxLv = Math.max(1, ...lv.values());
-  const agents = nodes.filter((n) => n.cluster === 'agents');
+  const agents = nodes.filter((n) => n.cluster === 'agents' && !n.detached);
+  const detached = nodes.filter((n) => n.cluster === 'agents' && n.detached);
   const kids = new Map<string, ClusterNode[]>(); const roots: ClusterNode[] = [];
   agents.forEach((n) => { const p = n.parentId && lv.has(n.parentId) ? n.parentId : null; if (p) kids.set(p, [...(kids.get(p) ?? []), n]); else roots.push(n); });
   const [ax, ay] = CENTRES.agents; const cx = ax * W, cy = ay * H; const RA = Math.min(W * 0.215, H * 0.44);
@@ -126,6 +131,7 @@ export function layoutClusters(nodes: ClusterNode[], W: number, H: number, nodeR
     const r = ringFrac * RA; const a = ang.get(n.id) ?? 0;
     pos.set(n.id, { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, r: l === 0 && single ? nodeR * 2.2 : nodeR * Math.max(0.7, 1.45 - l * 0.22) });
   });
+  detached.forEach((n, i) => { const cols = Math.max(1, Math.ceil(Math.sqrt(detached.length * 3))); pos.set(n.id, { x: cx - RA + (i % cols) * ((RA * 2) / cols), y: Math.min(H - nodeR * 2, cy + RA + nodeR * 4 + Math.floor(i / cols) * nodeR * 3), r: nodeR * 0.7 }); });
   for (const k of CLUSTER_ORDER) {
     if (k === 'agents') continue;
     const list = nodes.filter((n) => n.cluster === k); if (!list.length) continue;
@@ -150,8 +156,8 @@ interface N extends ClusterNode { bx: number; by: number; x: number; y: number; 
 interface E { a: N; b: N; inter: boolean; ph: number; hotUntil: number }
 interface Pulse { pts: N[]; seg: number; t: number; col: RGB; back?: RGB; dur: number }
 
-/** Five-cluster living neural network on a 2D canvas (sprite-based glow, ~60fps, pauses offscreen). */
-export function NeuralClusters({ nodes, edges = [], events = [], activeIds = [], mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini }: NeuralClustersProps) {
+/** 2D canvas fallback of the five-cluster network (used when WebGL is unavailable). */
+export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [], mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini }: NeuralClustersProps) {
   const cvRef = useRef<HTMLCanvasElement>(null); const wrapRef = useRef<HTMLDivElement>(null);
   const [tip, setTip] = useState<{ x: number; y: number; n: ClusterNode } | null>(null);
   const [focus, setFocus] = useState<ClusterKind | null>(null);
