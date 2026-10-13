@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.1.1...v1.1.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* **synapse:** hover highlights (brightness/glow, no fades) on Button; Cerebro shell CSS (topbar flush with sidebar top, centred search, no overlap) exported as cerebro-shell.css; require ds-glass ^5.1.1 ([458d771](https://github.com/The-Stoical-Developers/cerebro_design_system/commit/458d7712fb8f8a58a1a9c92edb4b3dbf339de879))
+
 ## [1.1.1](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.1.0...v1.1.1) (2026-10-13)
 
 
