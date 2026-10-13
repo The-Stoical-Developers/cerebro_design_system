@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.1.2...v1.2.0) (2026-10-13)
+
+
+### Features
+
+* **synapse:** 3D NeuralClusters (r3f + bloom) with one ring per real hierarchy level ([424eaa1](https://github.com/The-Stoical-Developers/cerebro_design_system/commit/424eaa11026d9888b9c4dc2c9abf8de97bd5f0f5))
+
 ## [1.1.2](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.1.1...v1.1.2) (2026-10-13)
 
 
