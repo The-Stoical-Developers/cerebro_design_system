@@ -2,14 +2,15 @@
   "name": "@cerebro/synapse",
   "version": "1.1.1",
   "type": "module",
-  "description": "Synapse design system — Cerebro operations console, built on TSD Glass Pro (@the-stoical-developers/ds-glass)",
+  "description": "Synapse design system \u2014 Cerebro operations console, built on TSD Glass Pro (@the-stoical-developers/ds-glass)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
     "src/generated/css",
     "tailwind.preset.cjs",
-    "glass-pro.css"
+    "glass-pro.css",
+    "cerebro-shell.css"
   ],
   "exports": {
     ".": {
@@ -27,7 +28,8 @@
       "import": "./dist/react/cerebro/index.js",
       "types": "./dist/react/cerebro/index.d.ts"
     },
-    "./glass-pro.css": "./glass-pro.css"
+    "./glass-pro.css": "./glass-pro.css",
+    "./cerebro-shell.css": "./cerebro-shell.css"
   },
   "scripts": {
     "prepare": "npm run build",
@@ -43,7 +45,7 @@
     "class-variance-authority": "^0.7.1",
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-label": "^2.1.1",
-    "@the-stoical-developers/ds-glass": "^5.1.0"
+    "@the-stoical-developers/ds-glass": "^5.1.1"
   },
   "peerDependencies": {
     "react": ">=18",
