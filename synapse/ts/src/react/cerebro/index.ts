@@ -10,3 +10,4 @@ export * from './NeuralNet';
 export * from './Mascot';
 export * from './NeuralClusters';
 export * from './brandLogos';
+export * from './NeuralClusters3D';

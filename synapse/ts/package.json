@@ -2,7 +2,7 @@
   "name": "@cerebro/synapse",
   "version": "1.1.2",
   "type": "module",
-  "description": "Synapse design system \u2014 Cerebro operations console, built on TSD Glass Pro (@the-stoical-developers/ds-glass)",
+  "description": "Synapse design system — Cerebro operations console, built on TSD Glass Pro (@the-stoical-developers/ds-glass)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -40,18 +40,21 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
-    "clsx": "^2.1.1",
-    "tailwind-merge": "^2.6.0",
-    "class-variance-authority": "^0.7.1",
-    "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-label": "^2.1.1",
-    "@the-stoical-developers/ds-glass": "^5.1.1"
+    "@radix-ui/react-slot": "^1.1.1",
+    "@the-stoical-developers/ds-glass": "^5.1.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.6.0"
   },
   "peerDependencies": {
+    "framer-motion": ">=11",
     "react": ">=18",
     "react-dom": ">=18",
-    "framer-motion": ">=11",
-    "three": ">=0.160"
+    "three": ">=0.168.0",
+    "@react-three/fiber": "^9.0.0",
+    "@react-three/drei": "^10.0.0",
+    "@react-three/postprocessing": "^3.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -61,37 +64,41 @@
       "optional": true
     },
     "three": {
-      "optional": true
+      "optional": false
     },
     "framer-motion": {
       "optional": true
     }
   },
   "devDependencies": {
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "@react-three/drei": "^10.7.9",
+    "@react-three/fiber": "^9.8.1",
+    "@react-three/postprocessing": "^3.2.0",
+    "@storybook/addon-essentials": "^8.6.0",
+    "@storybook/react-vite": "^8.6.0",
+    "@storybook/test": "^8.6.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/node": "^20",
-    "typescript": "5.9.3",
-    "vitest": "^4.1.4",
+    "@types/three": "^0.170.0",
     "@vitejs/plugin-react": "^6.0.1",
-    "jsdom": "^28.1.0",
-    "@testing-library/react": "^16.3.2",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/user-event": "^14.6.1",
-    "@testing-library/dom": "^10.4.0",
-    "storybook": "^8.6.0",
-    "@storybook/react-vite": "^8.6.0",
-    "@storybook/addon-essentials": "^8.6.0",
-    "@storybook/test": "^8.6.0",
-    "tailwindcss": "^3.4.17",
-    "postcss": "^8",
     "autoprefixer": "^10",
-    "vite": "^6.0.0",
     "framer-motion": "^11.18.2",
+    "jsdom": "^28.1.0",
+    "postcss": "^8",
+    "postprocessing": "^6.39.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "storybook": "^8.6.0",
+    "tailwindcss": "^3.4.17",
     "three": "^0.170.0",
-    "@types/three": "^0.170.0"
+    "typescript": "5.9.3",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.4"
   },
   "publishConfig": {
     "registry": "https://europe-southwest1-npm.pkg.dev/wedded-prod/tsd-npm/"
