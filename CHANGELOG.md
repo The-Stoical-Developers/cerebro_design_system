@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.2.0...v1.3.0) (2026-10-13)
+
+
+### Features
+
+* **synapse:** clickable agents in 3D NeuralClusters (neighbourhood highlight, glass panel, keyboard list) ([34a94fc](https://github.com/The-Stoical-Developers/cerebro_design_system/commit/34a94fc97912507d3d94c3dd6e12a720774056e8))
+
 # [1.2.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.1.2...v1.2.0) (2026-10-13)
 
 
