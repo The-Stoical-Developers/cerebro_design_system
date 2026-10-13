@@ -1,0 +1,52 @@
+name: Release
+
+# Same flow as wedded_design_system: semantic-release on main bumps
+# synapse/ts/package.json, tags vX.Y.Z and creates the GitHub release,
+# which triggers publish-synapse.yml.
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    name: semantic-release
+    runs-on: [self-hosted, Linux, X64, ci]
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Force HTTPS for github.com (drop SSH insteadOf)
+        run: |
+          for k in $(git config --global --get-regexp 'url\..*\.insteadof' 2>/dev/null | awk '{print $1}'); do
+            git config --global --unset-all "$k" || true
+          done
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: wedded-prod
+          workload_identity_provider: projects/28572557653/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
+          service_account: tsd-npm-publisher@wedded-prod.iam.gserviceaccount.com
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Configure npm auth for Artifact Registry (ds-glass dependency)
+        run: npx google-artifactregistry-auth@3 --repo-config=.npmrc
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Release
+        run: npx semantic-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}

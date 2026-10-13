@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: [self-hosted, Linux, X64, ci]
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: wedded-prod
+          workload_identity_provider: projects/28572557653/locations/global/workloadIdentityPools/github-actions-pool/providers/github-provider
+          service_account: tsd-npm-publisher@wedded-prod.iam.gserviceaccount.com
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npx google-artifactregistry-auth@3 --repo-config=.npmrc
+      - run: npm ci
+      - run: npm run build --workspace=@cerebro/synapse
+      - run: npm test
