@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
-import { layoutClusters3D, RING_GAP, NeuralClusters, type ClusterNode } from '../../react/cerebro';
+import { render, fireEvent } from '@testing-library/react';
+import { vi } from 'vitest';
+import { layoutClusters3D, RING_GAP, NeuralClusters, agentNeighborhood, AgentPanel, type ClusterNode } from '../../react/cerebro';
 
 const nodes: ClusterNode[] = [
   { id: 'me', label: 'Tú', cluster: 'agents' },
@@ -33,5 +34,23 @@ describe('layoutClusters3D', () => {
   it('falls back to 2D without WebGL', () => {
     const { getByTestId } = render(<NeuralClusters nodes={nodes} height={300} />);
     expect(getByTestId('neural-clusters')).toBeTruthy();
+  });
+});
+
+describe('agent selection', () => {
+  it('neighbourhood = self + parent + children', () => {
+    const h = agentNeighborhood('d1', nodes);
+    expect(h.parent?.id).toBe('c1'); expect(h.children.map((c) => c.id)).toEqual(['e1', 'e2']);
+    expect([...h.ids].sort()).toEqual(['c1', 'd1', 'e1', 'e2']);
+    expect(agentNeighborhood('r', nodes).ids.size).toBe(0);
+  });
+  it('side panel shows role/status and navigates parent/children', () => {
+    const onSelect = vi.fn(); const onClose = vi.fn();
+    const n2 = nodes.map((n) => (n.id === 'd1' ? { ...n, role: 'Director', status: 'archivado' } : n));
+    const { getByText, getByLabelText } = render(<AgentPanel info={agentNeighborhood('d1', n2)} onSelect={onSelect} onClose={onClose} />);
+    expect(getByText('Director')).toBeTruthy(); expect(getByText('archivado')).toBeTruthy();
+    fireEvent.click(getByText(/CMO/)); expect(onSelect).toHaveBeenCalledWith('c1');
+    fireEvent.click(getByText(/Emp2/)); expect(onSelect).toHaveBeenCalledWith('e2');
+    fireEvent.click(getByLabelText(/Cerrar/)); expect(onClose).toHaveBeenCalled();
   });
 });
