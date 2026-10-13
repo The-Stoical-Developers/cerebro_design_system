@@ -52,7 +52,7 @@ export const CLUSTER_COLORS: Record<ClusterKind, RGB> = {
 const OK: RGB = [31, 191, 135]; const ERR: RGB = [255, 77, 109];
 /** Cluster centres as fractions of the canvas (x of width, y of height). */
 const CENTRES: Record<ClusterKind, [number, number]> = {
-  agents: [0.27, 0.5], read: [0.565, 0.23], write: [0.565, 0.77], mcp: [0.735, 0.5], connections: [0.895, 0.5],
+  agents: [0.27, 0.5], read: [0.565, 0.28], write: [0.565, 0.75], mcp: [0.735, 0.5], connections: [0.895, 0.5],
 };
 
 /** Depth of each agents-cluster node (root = 0). Exported for tests. */
@@ -108,7 +108,7 @@ export function layoutClusters(nodes: ClusterNode[], W: number, H: number, nodeR
   const agents = nodes.filter((n) => n.cluster === 'agents');
   const kids = new Map<string, ClusterNode[]>(); const roots: ClusterNode[] = [];
   agents.forEach((n) => { const p = n.parentId && lv.has(n.parentId) ? n.parentId : null; if (p) kids.set(p, [...(kids.get(p) ?? []), n]); else roots.push(n); });
-  const [ax, ay] = CENTRES.agents; const cx = ax * W, cy = ay * H; const RA = Math.min(W * 0.235, H * 0.46);
+  const [ax, ay] = CENTRES.agents; const cx = ax * W, cy = ay * H; const RA = Math.min(W * 0.215, H * 0.44);
   const leaves: ClusterNode[] = []; const walk = (n: ClusterNode) => { const k = kids.get(n.id) ?? []; if (!k.length) leaves.push(n); k.forEach(walk); };
   // Single root sits at the centre; a forest gets a virtual centre.
   roots.forEach(walk);
@@ -130,8 +130,8 @@ export function layoutClusters(nodes: ClusterNode[], W: number, H: number, nodeR
     if (k === 'agents') continue;
     const list = nodes.filter((n) => n.cluster === k); if (!list.length) continue;
     const [fx, fy] = CENTRES[k]; const ccx = fx * W, ccy = fy * H;
-    const maxR = k === 'connections' ? Math.min(W * 0.085, H * 0.4) : k === 'mcp' ? Math.min(W * 0.07, H * 0.17) : Math.min(W * 0.11, H * 0.2);
-    const step = Math.min(maxR / Math.sqrt(list.length + 0.5), nodeR * (k === 'connections' || k === 'mcp' ? 5.5 : 4));
+    const maxR = k === 'connections' ? Math.min(W * 0.075, H * 0.27) : k === 'mcp' ? Math.min(W * 0.065, H * 0.2) : Math.min(W * 0.12, H * 0.2);
+    const step = Math.max(maxR / Math.sqrt(list.length + 0.5), nodeR * (k === 'connections' || k === 'mcp' ? 5 : 4.5));
     const r = k === 'connections' || k === 'mcp' ? nodeR * 1.9 : nodeR;
     list.forEach((n, i) => {
       const a = i * 2.39996323; const d = list.length === 1 ? 0 : step * Math.sqrt(i + 0.5);
@@ -192,9 +192,18 @@ export function NeuralClusters({ nodes, edges = [], events = [], activeIds = [],
       sprites.set(k, s); return s;
     };
     const nodeR = (mini ? 2.6 : 4.6) * dpr;
+    const lvMap = agentLevels(nodes);
+    let halos: { k: ClusterKind; cx: number; cy: number; rr: number; n: number }[] = []; let rings: { x: number; y: number; r: number }[] = [];
     const place = () => {
       const p = layoutClusters(nodes, W, H, nodeR);
       ns.forEach((n) => { const q = p.get(n.id); if (q) { n.bx = q.x; n.by = q.y; n.r = q.r; n.x = q.x; n.y = q.y; } });
+      halos = []; rings = [];
+      for (const k of CLUSTER_ORDER) {
+        const list = ns.filter((n) => n.cluster === k); if (!list.length) continue;
+        let sx = 0, sy = 0; list.forEach((n) => { sx += n.bx; sy += n.by; }); const cx = sx / list.length, cy = sy / list.length;
+        let rr = 0; list.forEach((n) => { rr = Math.max(rr, Math.hypot(n.bx - cx, n.by - cy)); }); halos.push({ k, cx, cy, rr: rr + 22 * dpr, n: list.length });
+        if (k === 'agents') { const root = list.find((n) => (lvMap.get(n.id) ?? 0) === 0); if (root) new Set(lvMap.values()).forEach((l) => { const ex = l ? list.find((n) => lvMap.get(n.id) === l) : undefined; if (ex) rings.push({ x: root.bx, y: root.by, r: Math.hypot(ex.bx - root.bx, ex.by - root.by) }); }); }
+      }
     };
     const resize = () => { W = cv.width = Math.max(1, Math.round(cv.clientWidth * dpr)); H = cv.height = Math.max(1, Math.round(cv.clientHeight * dpr)); place(); setFocusK(focusRef.current); view = { ...target }; };
     const setFocusK = (k: ClusterKind | null) => {
@@ -236,22 +245,14 @@ export function NeuralClusters({ nodes, edges = [], events = [], activeIds = [],
         const w = reduce ? 0 : 1.6 * dpr; n.x = n.bx + Math.sin(t * 0.0005 + n.ph) * w; n.y = n.by + Math.cos(t * 0.00043 + n.ph * 1.3) * w;
         const live = act.has(n.id) || n.hotUntil > t; n.lab += ((live ? 1 : 0) - n.lab) * Math.min(1, dt / 260); n.act *= Math.pow(0.5, dt / 700);
       });
-      // cluster halos + titles
+      // cluster halos + titles (precomputed in place())
       const fsz = (mini ? 8 : 11) * dpr;
-      for (const k of CLUSTER_ORDER) {
-        const list = ns.filter((n) => n.cluster === k); if (!list.length) continue;
-        let sx = 0, sy = 0; list.forEach((n) => { sx += n.bx; sy += n.by; }); const cx = sx / list.length, cy = sy / list.length;
-        let rr = 0; list.forEach((n) => { rr = Math.max(rr, Math.hypot(n.bx - cx, n.by - cy)); }); rr += 22 * dpr;
-        const breathe = reduce ? 1 : 1 + Math.sin(t * 0.0007 + k.length) * 0.015;
-        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rr * breathe); const c = CLUSTER_COLORS[k];
-        g.addColorStop(0, rgba(c, focusRef.current === k ? 0.13 : 0.07)); g.addColorStop(1, rgba(c, 0)); ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(cx, cy, rr * breathe, 0, 6.283); ctx.fill();
-        if (!mini) { ctx.font = `600 ${fsz}px ui-sans-serif, system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = rgba(c, 0.75); ctx.fillText(labels[k].toUpperCase() + ` · ${list.length}`, cx, cy - rr - 4 * dpr); }
-        if (k === 'agents' && !mini) { // level rings
-          const lv = agentLevels(nodes); const levels = new Set(lv.values()); const root = list.find((n) => (lv.get(n.id) ?? 0) === 0);
-          if (root) levels.forEach((l) => { if (!l) return; const ex = list.find((n) => lv.get(n.id) === l); if (!ex) return; const r = Math.hypot(ex.bx - root.bx, ex.by - root.by); ctx.strokeStyle = rgba(c, 0.08); ctx.lineWidth = dpr; ctx.setLineDash([2 * dpr, 6 * dpr]); ctx.beginPath(); ctx.arc(root.bx, root.by, r, 0, 6.283); ctx.stroke(); ctx.setLineDash([]); });
-        }
+      for (const h of halos) {
+        const c = CLUSTER_COLORS[h.k]; const R = h.rr * (reduce ? 1 : 1 + Math.sin(t * 0.0007 + h.k.length) * 0.015) * 2.2;
+        ctx.globalAlpha = focusRef.current === h.k ? 0.2 : 0.11; ctx.drawImage(sprite(c), h.cx - R / 2, h.cy - R / 2, R, R); ctx.globalAlpha = 1;
+        if (!mini) { ctx.font = `600 ${fsz}px ui-sans-serif, system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = rgba(c, 0.8); ctx.fillText(labels[h.k].toUpperCase() + ` · ${h.n}`, h.cx, h.cy - h.rr - 4 * dpr); }
       }
+      if (!mini) { ctx.strokeStyle = rgba(CLUSTER_COLORS.agents, 0.1); ctx.lineWidth = dpr; ctx.setLineDash([2 * dpr, 6 * dpr]); rings.forEach((r) => { ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, 6.283); ctx.stroke(); }); ctx.setLineDash([]); }
       // edges
       es.forEach((e) => {
         const hot = e.hotUntil > t || (act.has(e.a.id) && act.has(e.b.id));
@@ -290,14 +291,13 @@ export function NeuralClusters({ nodes, edges = [], events = [], activeIds = [],
           else { ctx.fillStyle = rgba(base, on ? 1 : 0.6); ctx.font = `700 ${Math.round(n.r * 0.85)}px ui-sans-serif, system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(n.initials, n.x, n.y + 0.5); ctx.textBaseline = 'alphabetic'; }
         } else {
           const lv = n.cluster === 'agents' && !n.parentId; const r = n.r * (1 + n.act * 0.35);
-          const g = ctx.createRadialGradient(n.x - r * 0.3, n.y - r * 0.3, 0, n.x, n.y, r);
-          g.addColorStop(0, rgba(mix(base, [255, 255, 255], on ? 0.7 : 0.35), 1)); g.addColorStop(1, rgba(base, on ? 1 : 0.55));
-          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
+          ctx.fillStyle = rgba(base, on ? 1 : 0.55); ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
+          ctx.fillStyle = rgba(mix(base, [255, 255, 255], 0.7), on ? 0.9 : 0.5); ctx.beginPath(); ctx.arc(n.x - r * 0.3, n.y - r * 0.3, r * 0.4, 0, 6.283); ctx.fill();
           if (lv) { ctx.strokeStyle = rgba(base, 0.5); ctx.lineWidth = dpr; ctx.beginPath(); ctx.arc(n.x, n.y, r + 4 * dpr + (reduce ? 0 : Math.sin(t * 0.002) * dpr), 0, 6.283); ctx.stroke(); }
         }
         // labels only for live nodes (fade in/out); root "Tú" always named
         const la = n.cluster === 'agents' && !n.parentId ? 1 : n.lab;
-        if (la > 0.03 && !(mini && n.parentId)) {
+        if (la > 0.03 && !(mini && !(n.cluster === 'agents' && !n.parentId))) {
           ctx.globalAlpha = la; ctx.font = `${n.parentId ? 500 : 700} ${(mini ? 8 : 10.5) * dpr}px ui-sans-serif, system-ui`; ctx.textAlign = 'center';
           const txt = n.label.length > 26 ? n.label.slice(0, 25) + '…' : n.label; const y = n.y + n.r + 12 * dpr;
           ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(10,10,24,.8)'; ctx.strokeText(txt, n.x, y); ctx.fillStyle = 'rgba(240,242,255,.95)'; ctx.fillText(txt, n.x, y); ctx.globalAlpha = 1;
