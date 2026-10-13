@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.4.0...v1.5.0) (2026-10-13)
+
+
+### Features
+
+* **synapse:** 3D agent click only selects; explicit 'ver ficha' button (agentHref/onOpenAgent) ([31f4516](https://github.com/The-Stoical-Developers/cerebro_design_system/commit/31f4516c5fd3c5b47d61fad18f1c9d723ed7fc09))
+
 # [1.4.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.3.0...v1.4.0) (2026-10-13)
 
 
