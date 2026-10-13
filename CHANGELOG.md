@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.1.0...v1.1.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **synapse:** NeuralClusters roomier tool/MCP/connection clusters, precomputed halos/rings and gradient-free nodes for 60fps, mini shows only the root label ([1c7aafc](https://github.com/The-Stoical-Developers/cerebro_design_system/commit/1c7aafcda6c34a56b5cbebc3a139c7d1e916f52c))
+
 # [1.1.0](https://github.com/The-Stoical-Developers/cerebro_design_system/compare/v1.0.2...v1.1.0) (2026-10-13)
 
 
