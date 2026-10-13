@@ -2,7 +2,7 @@
   "name": "@cerebro/synapse",
   "version": "1.0.1",
   "type": "module",
-  "description": "Synapse design system \u2014 Cerebro operations console, built on TSD Glass Pro (@the-stoical-developers/ds-glass)",
+  "description": "Synapse design system — Cerebro operations console, built on TSD Glass Pro (@the-stoical-developers/ds-glass)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -31,7 +31,7 @@
   },
   "scripts": {
     "prepare": "npm run build",
-    "build": "tsc --project tsconfig.build.json",
+    "build": "tsc --project tsconfig.build.json && node scripts/fix-esm-extensions.mjs dist",
     "test": "vitest run",
     "test:watch": "vitest",
     "storybook": "storybook dev -p 6006",
