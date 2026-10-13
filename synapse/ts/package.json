@@ -10,7 +10,8 @@
     "src/generated/css",
     "tailwind.preset.cjs",
     "glass-pro.css",
-    "cerebro-shell.css"
+    "cerebro-shell.css",
+    "favicon"
   ],
   "exports": {
     ".": {
@@ -29,7 +30,8 @@
       "types": "./dist/react/cerebro/index.d.ts"
     },
     "./glass-pro.css": "./glass-pro.css",
-    "./cerebro-shell.css": "./cerebro-shell.css"
+    "./cerebro-shell.css": "./cerebro-shell.css",
+    "./favicon/*": "./favicon/*"
   },
   "scripts": {
     "prepare": "npm run build",

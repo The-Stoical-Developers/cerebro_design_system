@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .orbit{stroke:#6d5cf6;stroke-opacity:.85}
+    .e1{fill:#22d3ee}.e2{fill:#ec4899}.e3{fill:#8b5cf6}
+    @media (prefers-color-scheme: dark){.orbit{stroke:#c4b5fd;stroke-opacity:.9}.e3{fill:#ddd6fe}}
+  </style>
+  <defs>
+    <radialGradient id="n" cx="38%" cy="34%" r="70%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset=".35" stop-color="#c4b5fd"/>
+      <stop offset=".75" stop-color="#7c3aed"/>
+      <stop offset="1" stop-color="#4338ca"/>
+    </radialGradient>
+    <radialGradient id="g" r=".5"><stop offset="0" stop-color="#a78bfa" stop-opacity=".55"/><stop offset="1" stop-color="#a78bfa" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="20" fill="url(#g)"/>
+  <g fill="none" stroke-width="3">
+    <ellipse class="orbit" cx="32" cy="32" rx="28" ry="10.5"/>
+    <ellipse class="orbit" cx="32" cy="32" rx="28" ry="10.5" transform="rotate(60 32 32)"/>
+    <ellipse class="orbit" cx="32" cy="32" rx="28" ry="10.5" transform="rotate(-60 32 32)"/>
+  </g>
+  <circle cx="32" cy="32" r="9" fill="url(#n)"/>
+  <circle class="e1" cx="60" cy="32" r="4.2"/>
+  <circle class="e2" cx="18" cy="56.2" r="4.2"/>
+  <circle class="e3" cx="18" cy="7.8" r="4.2"/>
+</svg>
