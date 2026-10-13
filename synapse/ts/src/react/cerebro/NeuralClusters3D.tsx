@@ -242,7 +242,7 @@ export function hasWebGL(): boolean {
  * automatically when WebGL is unavailable. Real-only impulses; labels only on live nodes; logos on MCP/connections.
  */
 export function NeuralClusters(props: NeuralClustersProps) {
-  const { nodes, edges = [], events = [], activeIds = [], mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini } = props;
+  const { nodes, edges = [], events = [], activeIds = [], mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini, agentHref, onOpenAgent } = props;
   const [gl, setGl] = useState<boolean | null>(null);
   useEffect(() => { setGl(hasWebGL()); }, []);
   const wrap = useRef<HTMLDivElement>(null);
@@ -276,14 +276,14 @@ export function NeuralClusters(props: NeuralClustersProps) {
   return (
     <div ref={wrap} className={className} data-testid="neural-clusters" style={{ position: 'relative', width: '100%', height, borderRadius: 14, overflow: 'hidden', background: 'radial-gradient(120% 90% at 30% 40%, #171a3a 0%, #0b0c1d 60%, #07070f 100%)', ...style }}
       role="group" aria-label={`Red neuronal 3D: ${nodes.length} nodos en ${CLUSTER_ORDER.length} clústeres, ${active.size} activos`}>
-      <style>{'@keyframes nc3d-fade{from{opacity:0}to{opacity:1}}@keyframes nc3d-in{from{opacity:0;filter:none;transform:translateY(4px)}to{opacity:1;transform:none}}@keyframes nc3d-panel{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}.nc3d-list{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.nc3d-list:focus-within{width:auto;height:auto;clip:auto;left:12px;top:12px;max-height:60%;overflow:auto;z-index:4;background:rgba(16,18,34,.92);border:1px solid rgba(160,140,255,.5);border-radius:10px;padding:6px}.nc3d-list ul{list-style:none;margin:0;padding:0}.nc3d-list button{all:unset;display:block;cursor:pointer;color:#eef;font-size:12px;padding:3px 8px;border-radius:6px}.nc3d-list button:focus-visible{outline:2px solid #a78bfa}.nc3d-panel button.nc3d-link{all:unset;cursor:pointer;display:block;padding:5px 8px;border-radius:8px;color:#eef;font-size:12px}.nc3d-panel button.nc3d-link:hover,.nc3d-panel button.nc3d-link:focus-visible{background:rgba(167,139,250,.22);box-shadow:0 0 0 1px rgba(167,139,250,.6);outline:none}'}</style>
+      <style>{'@keyframes nc3d-fade{from{opacity:0}to{opacity:1}}@keyframes nc3d-in{from{opacity:0;filter:none;transform:translateY(4px)}to{opacity:1;transform:none}}@keyframes nc3d-panel{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}[data-nc3d-tip]{position:relative}[data-nc3d-tip]:hover::after,[data-nc3d-tip]:focus-visible::after{content:attr(data-nc3d-tip);position:absolute;right:0;top:calc(100% + 6px);white-space:nowrap;font:500 11px ui-sans-serif,system-ui;color:#eef;background:rgba(16,18,34,.95);border:1px solid rgba(167,139,250,.6);border-radius:6px;padding:3px 7px;z-index:6;pointer-events:none;text-shadow:none}.nc3d-verficha{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#e9e5ff;background:rgba(167,139,250,.18);border:1px solid rgba(167,139,250,.5);pointer-events:auto;transition:box-shadow .15s,background .15s}.nc3d-verficha:hover,.nc3d-verficha:focus-visible{background:rgba(167,139,250,.38);box-shadow:0 0 12px rgba(167,139,250,.8);outline:none}.nc3d-verficha.sm{width:20px;height:20px;border-radius:6px;margin-left:6px;vertical-align:middle}.nc3d-list{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.nc3d-list:focus-within{width:auto;height:auto;clip:auto;left:12px;top:12px;max-height:60%;overflow:auto;z-index:4;background:rgba(16,18,34,.92);border:1px solid rgba(160,140,255,.5);border-radius:10px;padding:6px}.nc3d-list ul{list-style:none;margin:0;padding:0}.nc3d-list button{all:unset;display:block;cursor:pointer;color:#eef;font-size:12px;padding:3px 8px;border-radius:6px}.nc3d-list button:focus-visible{outline:2px solid #a78bfa}.nc3d-panel button.nc3d-link{all:unset;cursor:pointer;display:block;padding:5px 8px;border-radius:8px;color:#eef;font-size:12px}.nc3d-panel button.nc3d-link:hover,.nc3d-panel button.nc3d-link:focus-visible{background:rgba(167,139,250,.22);box-shadow:0 0 0 1px rgba(167,139,250,.6);outline:none}'}</style>
       {gl && (
         <Canvas dpr={mini ? [1, 1.25] : [1, 1.75]} frameloop={visible ? 'always' : 'never'} gl={{ antialias: !mini, powerPreference: 'high-performance', alpha: true }}
           camera={{ fov: 42, near: 0.5, far: 600, position: [0, 30, 90] }} onPointerMissed={() => { if (!mini) { setFocus(null); setSel(null); } else onNodeClick?.(nodes[0]); }}>
           <fog attach="fog" args={['#0b0c1d', 70, 220]} />
           <Scene nodes={nodes} edges={edges} layout={layout} active={active} hot={hot} queue={queue} focus={focus} mini={mini} labels={shownLabels} labelEls={labelEls} sel={sel} hood={hood}
             onHover={(n, x, y) => { if (mini) return; setTip(n ? { n, x, y } : null); if (wrap.current) wrap.current.style.cursor = n ? 'pointer' : 'default'; }}
-            onPick={(n) => { if (mini) { onNodeClick?.(n); return; } if (n.cluster === 'agents') { setSel(n.id); setTip(null); } else { setSel(null); setFocus(n.cluster); } onNodeClick?.(n); }} />
+            onPick={(n) => { if (mini) { onNodeClick?.(n); return; } if (n.cluster === 'agents') { setSel(n.id); setTip(null); return; } setSel(null); setFocus(n.cluster); onNodeClick?.(n); }} />
           {!mini && (
             <EffectComposer multisampling={0}>
               <Bloom intensity={1.15} luminanceThreshold={0.55} luminanceSmoothing={0.25} mipmapBlur radius={0.7} />
@@ -299,17 +299,18 @@ export function NeuralClusters(props: NeuralClustersProps) {
         </div>
       )}
       {!mini && (
-        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 1 }}>
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 1 }}>
           {[...shownLabels].map((id) => { const n = nodeById.get(id); if (!n) return null; const root = n.cluster === 'agents' && !n.parentId && !n.detached;
             return (
               <span key={id} ref={(el) => { if (el) labelEls.current.set(id, el); else labelEls.current.delete(id); }}
                 style={{ position: 'absolute', left: 0, top: 0, visibility: 'hidden', font: `${root ? 700 : 500} ${root ? 13 : 11}px ui-sans-serif, system-ui`, color: '#f0f2ff', whiteSpace: 'nowrap', textShadow: '0 0 6px rgba(120,130,255,.9), 0 1px 2px #000', animation: 'nc3d-fade .6s ease-out both' }}>
                 {n.label.length > 28 ? n.label.slice(0, 27) + '…' : n.label}
+                {id === sel && (agentHref?.(n) || onOpenAgent) && <VerFicha n={n} href={agentHref?.(n)} onOpen={onOpenAgent} small />}
               </span>
             ); })}
         </div>
       )}
-      {!mini && hoodInfo?.self && <AgentPanel info={hoodInfo} onSelect={(id) => { setSel(id); setTip(null); }} onClose={() => setSel(null)} />}
+      {!mini && hoodInfo?.self && <AgentPanel info={hoodInfo} href={agentHref?.(hoodInfo.self)} onOpen={onOpenAgent} onSelect={(id) => { setSel(id); setTip(null); }} onClose={() => setSel(null)} />}
       {!mini && (
         <nav aria-label="Agentes de la red" className="nc3d-list">
           <ul>{nodes.filter((n) => n.cluster === 'agents').map((n) => (
@@ -340,7 +341,7 @@ export function NeuralClusters(props: NeuralClustersProps) {
 }
 
 /** Glass side panel for the selected agent: name, role, status, clickable parent and children. */
-export function AgentPanel({ info, onSelect, onClose }: { info: ReturnType<typeof agentNeighborhood>; onSelect: (id: string) => void; onClose: () => void }) {
+export function AgentPanel({ info, onSelect, onClose, href, onOpen }: { info: ReturnType<typeof agentNeighborhood>; onSelect: (id: string) => void; onClose: () => void; href?: string; onOpen?: (n: ClusterNode) => void }) {
   const n = info.self!; const status = n.status ?? (n.detached ? 'sin jerarquía' : n.muted ? 'archivado' : 'activo');
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { ref.current?.focus(); }, [n.id]);
@@ -353,6 +354,7 @@ export function AgentPanel({ info, onSelect, onClose }: { info: ReturnType<typeo
           <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.25, wordBreak: 'break-word' }}>{n.label}</div>
           <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>{n.role ?? n.kind ?? 'Agente'}</div>
         </div>
+        {(href || onOpen) && <VerFicha n={n} href={href} onOpen={onOpen} />}
         <button type="button" onClick={onClose} aria-label="Cerrar panel (Esc)" className="nc3d-link" style={{ fontSize: 16, lineHeight: 1, padding: '2px 8px' }}>×</button>
       </div>
       <span style={{ display: 'inline-block', marginTop: 8, fontSize: 11, padding: '2px 8px', borderRadius: 999, background: status === 'activo' ? 'rgba(31,191,135,.2)' : 'rgba(255,255,255,.1)', border: `1px solid ${status === 'activo' ? 'rgba(31,191,135,.6)' : 'rgba(255,255,255,.2)'}` }}>{status}</span>
@@ -362,4 +364,15 @@ export function AgentPanel({ info, onSelect, onClose }: { info: ReturnType<typeo
       {info.children.length ? <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>{info.children.map((c) => <li key={c.id}><button type="button" className="nc3d-link" onClick={() => onSelect(c.id)}>↓ {c.label}{c.muted ? ' · archivado' : ''}</button></li>)}</ul> : <div style={{ fontSize: 12, opacity: 0.6, padding: '0 8px' }}>Sin subordinados</div>}
     </aside>
   );
+}
+
+/** Explicit "ver ficha" icon button: the ONLY way the 3D view opens an agent's detail page. */
+export function VerFicha({ n, href, onOpen, small }: { n: ClusterNode; href?: string; onOpen?: (n: ClusterNode) => void; small?: boolean }) {
+  const label = `Ver ficha de ${n.label}`;
+  const icon = <svg width={small ? 11 : 14} height={small ? 11 : 14} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 2h5v5" /><path d="M14 2 7.5 8.5" /><path d="M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5" /></svg>;
+  const click = (e: React.MouseEvent) => { e.stopPropagation(); if (onOpen) { e.preventDefault(); onOpen(n); } };
+  const cls = `nc3d-verficha${small ? ' sm' : ''}`;
+  return href
+    ? <a href={href} className={cls} aria-label={label} data-nc3d-tip="Ver ficha" title="Ver ficha" data-testid="ver-ficha" onClick={click}>{icon}</a>
+    : <button type="button" className={cls} aria-label={label} data-nc3d-tip="Ver ficha" title="Ver ficha" data-testid="ver-ficha" onClick={click}>{icon}</button>;
 }

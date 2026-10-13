@@ -46,6 +46,10 @@ export interface NeuralClustersProps {
   onNodeClick?: (n: ClusterNode) => void;
   clusterLabels?: Partial<Record<ClusterKind, string>>;
   showLegend?: boolean;
+  /** 3D: URL of an agent's detail page. Selecting a node never navigates; a "ver ficha" button opens this href. */
+  agentHref?: (n: ClusterNode) => string | undefined;
+  /** 3D: called when the "ver ficha" button is activated (use for client-side routing; default navigation is prevented). */
+  onOpenAgent?: (n: ClusterNode) => void;
 }
 
 export const CLUSTER_ORDER: ClusterKind[] = ['agents', 'read', 'write', 'mcp', 'connections'];
