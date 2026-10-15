@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { NeuralNavigation, useNeuralFullscreen } from './NeuralNavigation';
 import { brandInitials, resolveBrand } from './brandLogos';
 
 /**
@@ -184,6 +185,7 @@ interface Pulse { pts: N[]; seg: number; t: number; col: RGB; back?: RGB; dur: n
 /** 2D canvas fallback of the root-cluster network (used when WebGL is unavailable). */
 export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [], mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini }: NeuralClustersProps) {
   const cvRef = useRef<HTMLCanvasElement>(null); const wrapRef = useRef<HTMLDivElement>(null);
+  const fullscreen = useNeuralFullscreen(wrapRef);
   const [tip, setTip] = useState<{ x: number; y: number; n: ClusterNode } | null>(null);
   const [focus, setFocus] = useState<ClusterKind | null>(null);
   const labels = { ...DEFAULT_CLUSTER_LABELS, ...clusterLabels };
@@ -346,16 +348,23 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
     raf = requestAnimationFrame(frame);
     const toWorld = (ev: MouseEvent) => { const b = cv.getBoundingClientRect(); const px = (ev.clientX - b.left) * dpr, py = (ev.clientY - b.top) * dpr; return [(px - view.x) / view.k, (py - view.y) / view.k, ev.clientX - b.left, ev.clientY - b.top] as const; };
     const hit = (x: number, y: number) => { let best: N | null = null, bd = Infinity; ns.forEach((n) => { const d = Math.hypot(n.x - x, n.y - y); if (d < Math.max(n.r + 6 * dpr, 9 * dpr) && d < bd) { bd = d; best = n; } }); return best as N | null; };
-    const onMove = (ev: MouseEvent) => { if (mini) return; const [x, y, cx, cy] = toWorld(ev); const n = hit(x, y); cv.style.cursor = n ? 'pointer' : 'default'; setTip(n ? { x: cx, y: cy, n } : null); };
+    let pointer: { x: number; y: number; startX: number; startY: number; pan: boolean } | null = null; let dragged = false;
+    const onDown = (ev: PointerEvent) => { if (mini) return; dragged = false; pointer = { x: ev.clientX, y: ev.clientY, startX: ev.clientX, startY: ev.clientY, pan: ev.button === 2 }; if (pointer.pan) cv.setPointerCapture(ev.pointerId); };
+    const onUp = () => { pointer = null; };
+    const onContextMenu = (ev: MouseEvent) => { if (!mini) ev.preventDefault(); };
+    const onWheel = (ev: WheelEvent) => { if (mini) return; ev.preventDefault(); const b = cv.getBoundingClientRect(); const x = (ev.clientX - b.left) * dpr, y = (ev.clientY - b.top) * dpr; const k = Math.max(0.4, Math.min(8, target.k * Math.exp(-ev.deltaY * 0.001))); target = { k, x: x - (x - target.x) * k / target.k, y: y - (y - target.y) * k / target.k }; };
+    const onMove = (ev: MouseEvent) => { if (mini) return; if (pointer && ev.buttons) { dragged ||= Math.hypot(ev.clientX - pointer.startX, ev.clientY - pointer.startY) > 5; if (pointer.pan) { target.x += (ev.clientX - pointer.x) * dpr; target.y += (ev.clientY - pointer.y) * dpr; } pointer.x = ev.clientX; pointer.y = ev.clientY; if (dragged) { setTip(null); return; } } const [x, y, cx, cy] = toWorld(ev); const n = hit(x, y); cv.style.cursor = n ? 'pointer' : 'default'; setTip(n ? { x: cx, y: cy, n } : null); };
     const onClick = (ev: MouseEvent) => {
       if (mini) { clickRef.current?.(ns[0]); return; }
+      if (dragged) return;
       const [x, y] = toWorld(ev); const n = hit(x, y);
       if (!n) { setFocus(null); return; }
-      setFocus((f) => (f === n.cluster ? f : n.cluster)); clickRef.current?.(n);
+      setFocus(n.cluster); engine.current?.setFocus(n.cluster); clickRef.current?.(n);
     };
     const onLeave = () => setTip(null);
+    cv.addEventListener('pointerdown', onDown); cv.addEventListener('pointerup', onUp); cv.addEventListener('pointercancel', onUp); cv.addEventListener('wheel', onWheel, { passive: false }); cv.addEventListener('contextmenu', onContextMenu);
     cv.addEventListener('mousemove', onMove); cv.addEventListener('click', onClick); cv.addEventListener('mouseleave', onLeave);
-    return () => { cancelAnimationFrame(raf); ro?.disconnect(); io?.disconnect(); cv.removeEventListener('mousemove', onMove); cv.removeEventListener('click', onClick); cv.removeEventListener('mouseleave', onLeave); engine.current = null; };
+    return () => { cv.removeEventListener('pointerdown', onDown); cv.removeEventListener('pointerup', onUp); cv.removeEventListener('pointercancel', onUp); cv.removeEventListener('wheel', onWheel); cv.removeEventListener('contextmenu', onContextMenu); cancelAnimationFrame(raf); ro?.disconnect(); io?.disconnect(); cv.removeEventListener('mousemove', onMove); cv.removeEventListener('click', onClick); cv.removeEventListener('mouseleave', onLeave); engine.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, edges, mini]);
 
@@ -369,7 +378,8 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
 
   const lineage = tip ? lineageOf(tip.n.id, nodes, edges) : [];
   return (
-    <div ref={wrapRef} className={className} data-testid="neural-clusters" style={{ position: 'relative', width: '100%', height, ...style }}>
+    <div ref={wrapRef} className={className} data-testid="neural-clusters" style={{ position: 'relative', width: '100%', height, background: '#0b0c1d', overflow: 'hidden', ...style, ...(fullscreen.fullscreen ? { width: '100vw', height: '100vh' } : {}) }}>
+      {!mini && <NeuralNavigation {...fullscreen} onReset={() => { setFocus(null); setTip(null); engine.current?.setFocus(null); }} />}
       <canvas ref={cvRef} role="img" aria-label={`Red neuronal: ${nodes.length} nodos en ${agentBranches(nodes).length + CLUSTER_ORDER.length - 1} clústeres, ${active.size} activos`} style={{ width: '100%', height: '100%', display: 'block' }} />
       {tip && (
         <div role="tooltip" style={{ position: 'absolute', left: Math.min(tip.x + 14, (wrapRef.current?.clientWidth ?? 9999) - 260), top: tip.y + 14, maxWidth: 260, pointerEvents: 'none', background: 'rgba(16,18,34,.92)', border: `1px solid ${rgba(CLUSTER_COLORS[tip.n.cluster], 0.5)}`, borderRadius: 10, padding: '8px 10px', color: '#eef', fontSize: 12, lineHeight: 1.4, backdropFilter: 'blur(8px)', zIndex: 2 }}>

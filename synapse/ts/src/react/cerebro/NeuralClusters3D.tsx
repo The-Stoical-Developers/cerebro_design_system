@@ -5,6 +5,8 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { Sparkles } from '@react-three/drei';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
+import { NeuralCamera } from './NeuralCamera';
+import { NeuralNavigation, useNeuralFullscreen } from './NeuralNavigation';
 import { brandInitials, resolveBrand } from './brandLogos';
 import {
   CLUSTER_COLORS, CLUSTER_ORDER, DEFAULT_CLUSTER_LABELS, NeuralClusters2D, agentBranches, agentLevels, lineageOf, withAncestors,
@@ -94,11 +96,11 @@ function logoTexture(n: ClusterNode): THREE.CanvasTexture {
 }
 
 interface Pulse { pts: string[]; seg: number; t: number; color: THREE.Color; back?: THREE.Color; dur: number }
-interface SceneProps { nodes: ClusterNode[]; edges: ClusterEdge[]; layout: Layout3D; active: Set<string>; hot: React.MutableRefObject<Map<string, number>>; queue: React.MutableRefObject<ClusterEvent[]>; focus: ClusterKind | null; mini: boolean; onHover: (n: ClusterNode | null, x: number, y: number) => void; onPick: (n: ClusterNode) => void; labels: Set<string>; labelEls: React.MutableRefObject<Map<string, HTMLSpanElement>>; sel: string | null; hood: Set<string> }
+interface SceneProps { nodes: ClusterNode[]; edges: ClusterEdge[]; layout: Layout3D; active: Set<string>; hot: React.MutableRefObject<Map<string, number>>; queue: React.MutableRefObject<ClusterEvent[]>; focus: ClusterKind | null; mini: boolean; onHover: (n: ClusterNode | null, x: number, y: number) => void; onPick: (n: ClusterNode) => void; labels: Set<string>; labelEls: React.MutableRefObject<Map<string, HTMLSpanElement>>; sel: string | null; hood: Set<string>; viewRevision: number; dragged: React.MutableRefObject<boolean> }
 
 const SEG = 8; const MAX_PULSES = 120; const TRAIL = 5;
 
-function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover, onPick, labelEls, sel, hood }: SceneProps) {
+function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover, onPick, labelEls, sel, hood, viewRevision, dragged }: SceneProps) {
   const hit = useRef<THREE.InstancedMesh>(null);
   const { camera, gl } = useThree();
   const sphereNodes = useMemo(() => nodes.filter((n) => n.cluster !== 'mcp' && n.cluster !== 'connections'), [nodes]);
@@ -128,16 +130,10 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
   const ringGeo = useMemo(() => layout.rings.map((r) => { const pts = Array.from({ length: 129 }, (_, i) => { const a = (i / 128) * Math.PI * 2; return new THREE.Vector3(r.centre[0] + Math.cos(a) * r.radius, r.centre[1] + (r.level % 2 ? 0.6 : -0.6), r.centre[2] + Math.sin(a) * r.radius); }); return new THREE.BufferGeometry().setFromPoints(pts); }), [layout]);
   useEffect(() => () => ringGeo.forEach((g) => g.dispose()), [ringGeo]);
   const pulses = useRef<Pulse[]>([]);
-  const camT = useRef({ target: new THREE.Vector3(), dist: 60 });
   const span = useMemo(() => { const c = layout.centres; return { mid: new THREE.Vector3((c.connections[0] + layout.radii.connections + c.agents[0] - layout.radii.agents) / 2, 0, 0), dist: (c.connections[0] + layout.radii.connections - c.agents[0] + layout.radii.agents) * (mini ? 1.0 : 0.8) }; }, [layout, mini]);
-  useEffect(() => {
-    const sp = sel ? layout.pos.get(sel) : undefined;
-    if (sp) { camT.current.target.set(...sp); camT.current.dist = 24 + Math.min(16, hood.size); return; }
-    if (!focus) { camT.current.target.copy(span.mid); camT.current.dist = span.dist; return; }
-    camT.current.target.set(...layout.centres[focus]); camT.current.dist = Math.max(18, layout.radii[focus] * 3.2);
-  }, [focus, span, layout, sel, hood]);
+  const cameraTarget = sel ? layout.pos.get(sel) : focus ? layout.centres[focus] : undefined;
+  const cameraDistance = sel ? 24 + Math.min(16, hood.size) : focus ? Math.max(18, layout.radii[focus] * 3.2) : span.dist;
   const tmp = useMemo(() => ({ m: new THREE.Matrix4(), c: new THREE.Color(), v: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3() }), []);
-  const lookAt = useRef(new THREE.Vector3().copy(span.mid));
   const curve = (a: number, b: number, u: number, out: THREE.Vector3, inter: boolean) => {
     const ax = cur[a * 3], ay = cur[a * 3 + 1], az = cur[a * 3 + 2], bx = cur[b * 3], by = cur[b * 3 + 1], bz = cur[b * 3 + 2];
     const mx = (ax + bx) / 2, my = (ay + by) / 2 + (inter ? Math.hypot(bx - ax, bz - az) * 0.18 : 0), mz = (az + bz) / 2; const q = 1 - u;
@@ -145,11 +141,6 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
   };
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime; const dt = Math.min(delta, 0.05); const now = performance.now();
-    // camera: slow organic orbit + smooth focus
-    lookAt.current.lerp(camT.current.target, 0.04);
-    const az = Math.sin(t * 0.07) * 0.32 + 0.05; const el = 0.42 + Math.sin(t * 0.05) * 0.07; const d = THREE.MathUtils.lerp(camera.position.distanceTo(lookAt.current), camT.current.dist, 0.04);
-    camera.position.set(lookAt.current.x + Math.sin(az) * Math.cos(el) * d, lookAt.current.y + Math.sin(el) * d, lookAt.current.z + Math.cos(az) * Math.cos(el) * d); camera.lookAt(lookAt.current);
-    // organic drift
     nodes.forEach((n, i) => { const p = layout.pos.get(n.id) ?? [0, 0, 0]; const ph = phase[i]; const w = n.cluster === 'agents' && !n.parentId && !n.detached ? 0 : 0.35;
       cur[i * 3] = p[0] + Math.sin(t * 0.35 + ph) * w; cur[i * 3 + 1] = p[1] + Math.cos(t * 0.29 + ph * 1.3) * w; cur[i * 3 + 2] = p[2] + Math.sin(t * 0.31 + ph * 0.7) * w;
       act[i] = Math.max(0, act[i] - dt * 0.9); });
@@ -210,9 +201,10 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
     if (pm) { pm.count = pk; pm.instanceMatrix.needsUpdate = true; if (pm.instanceColor) pm.instanceColor.needsUpdate = true; }
   });
   void gl;
-  const pick = (e: ThreeEvent<PointerEvent | MouseEvent>, n: ClusterNode | undefined, click: boolean) => { if (!n) return; e.stopPropagation(); if (click) onPick(n); else onHover(n, e.nativeEvent.offsetX, e.nativeEvent.offsetY); };
+  const pick = (e: ThreeEvent<PointerEvent | MouseEvent>, n: ClusterNode | undefined, click: boolean) => { if (!n) return; e.stopPropagation(); if (click) { if (!dragged.current && e.delta <= 5) onPick(n); } else onHover(n, e.nativeEvent.offsetX, e.nativeEvent.offsetY); };
   return (
     <>
+      <NeuralCamera target={cameraTarget ?? span.mid.toArray()} distance={cameraDistance} selected={!!(sel || focus)} revision={viewRevision} mini={mini} />
       {!mini && <Sparkles count={80} scale={[span.dist * 1.6, 30, 40]} position={span.mid.toArray()} size={1.6} speed={0.2} opacity={0.35} color="#9aa4ff" />}
       {layout.agentGroups.map((g) => (
         <mesh key={g.rootId} position={g.centre} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
@@ -260,9 +252,17 @@ export function NeuralClusters(props: NeuralClustersProps) {
   const [gl, setGl] = useState<boolean | null>(null);
   useEffect(() => { setGl(hasWebGL()); }, []);
   const wrap = useRef<HTMLDivElement>(null);
+  const fullscreen = useNeuralFullscreen(wrap);
+  const dragged = useRef(false);
+  const pointerStart = useRef<[number, number] | null>(null);
+  const [viewRevision, setViewRevision] = useState(0);
   const [visible, setVisible] = useState(true);
   useEffect(() => { const el = wrap.current; if (!el || typeof IntersectionObserver === 'undefined') return; const io = new IntersectionObserver(([e]) => setVisible(e.isIntersecting)); io.observe(el); return () => io.disconnect(); }, []);
   const layout = useMemo(() => layoutClusters3D(nodes), [nodes]);
+  const networkWidth = layout.centres.connections[0] + layout.radii.connections - layout.centres.agents[0] + layout.radii.agents;
+  // OrbitControls permits up to 4× focus distance; keep clipping/fog beyond that navigable envelope.
+  const navigationFar = Math.max(2400, networkWidth * 12);
+  const navigationFogNear = Math.max(800, networkWidth * 8);
   const active = useMemo(() => withAncestors(activeIds, nodes), [activeIds, nodes]);
   const hot = useRef(new Map<string, number>()); const queue = useRef<ClusterEvent[]>([]); const seen = useRef(new Set<string>());
   const [hotTick, setHotTick] = useState(0);
@@ -284,21 +284,27 @@ export function NeuralClusters(props: NeuralClustersProps) {
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const [tip, setTip] = useState<{ n: ClusterNode; x: number; y: number } | null>(null);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { setSel(null); setFocus(null); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  const resetView = () => { setSel(null); setFocus(null); setTip(null); setViewRevision((v) => v + 1); };
+  const selectAgent = (id: string) => { setSel(id); setTip(null); setViewRevision((v) => v + 1); };
   const L = { ...DEFAULT_CLUSTER_LABELS, ...clusterLabels };
   if (gl === false) return <NeuralClusters2D {...props} />;
   const lineage = tip ? lineageOf(tip.n.id, nodes, edges) : [];
   const rgba = (k: ClusterKind, a: number) => `rgba(${CLUSTER_COLORS[k].join(',')},${a})`;
   return (
-    <div ref={wrap} className={className} data-testid="neural-clusters" style={{ position: 'relative', width: '100%', height, borderRadius: 14, overflow: 'hidden', background: 'radial-gradient(120% 90% at 30% 40%, #171a3a 0%, #0b0c1d 60%, #07070f 100%)', ...style }}
+    <div ref={wrap} className={className} data-testid="neural-clusters" style={{ position: 'relative', width: '100%', height, borderRadius: 14, overflow: 'hidden', background: 'radial-gradient(120% 90% at 30% 40%, #171a3a 0%, #0b0c1d 60%, #07070f 100%)', ...style, ...(fullscreen.fullscreen ? { width: '100vw', height: '100vh', borderRadius: 0 } : {}) }}
+      onPointerDownCapture={(e) => { pointerStart.current = [e.clientX, e.clientY]; dragged.current = false; }}
+      onPointerMoveCapture={(e) => { const start = pointerStart.current; if (e.buttons && start && Math.hypot(e.clientX - start[0], e.clientY - start[1]) > 5) dragged.current = true; }}
+      onContextMenu={(e) => { if (!mini) e.preventDefault(); }}
       role="group" aria-label={`Red neuronal 3D: ${nodes.length} nodos en ${layout.agentGroups.length + CLUSTER_ORDER.length - 1} clústeres, ${active.size} activos`}>
       <style>{'@keyframes nc3d-fade{from{opacity:0}to{opacity:1}}@keyframes nc3d-in{from{opacity:0;filter:none;transform:translateY(4px)}to{opacity:1;transform:none}}@keyframes nc3d-panel{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}[data-nc3d-tip]{position:relative}[data-nc3d-tip]:hover::after,[data-nc3d-tip]:focus-visible::after{content:attr(data-nc3d-tip);position:absolute;right:0;top:calc(100% + 6px);white-space:nowrap;font:500 11px ui-sans-serif,system-ui;color:#eef;background:rgba(16,18,34,.95);border:1px solid rgba(167,139,250,.6);border-radius:6px;padding:3px 7px;z-index:6;pointer-events:none;text-shadow:none}.nc3d-verficha{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#e9e5ff;background:rgba(167,139,250,.18);border:1px solid rgba(167,139,250,.5);pointer-events:auto;transition:box-shadow .15s,background .15s}.nc3d-verficha:hover,.nc3d-verficha:focus-visible{background:rgba(167,139,250,.38);box-shadow:0 0 12px rgba(167,139,250,.8);outline:none}.nc3d-verficha.sm{width:20px;height:20px;border-radius:6px;margin-left:6px;vertical-align:middle}.nc3d-list{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.nc3d-list:focus-within{width:auto;height:auto;clip:auto;left:12px;top:12px;max-height:60%;overflow:auto;z-index:4;background:rgba(16,18,34,.92);border:1px solid rgba(160,140,255,.5);border-radius:10px;padding:6px}.nc3d-list ul{list-style:none;margin:0;padding:0}.nc3d-list button{all:unset;display:block;cursor:pointer;color:#eef;font-size:12px;padding:3px 8px;border-radius:6px}.nc3d-list button:focus-visible{outline:2px solid #a78bfa}.nc3d-panel button.nc3d-link{all:unset;cursor:pointer;display:block;padding:5px 8px;border-radius:8px;color:#eef;font-size:12px}.nc3d-panel button.nc3d-link:hover,.nc3d-panel button.nc3d-link:focus-visible{background:rgba(167,139,250,.22);box-shadow:0 0 0 1px rgba(167,139,250,.6);outline:none}'}</style>
+      {!mini && <NeuralNavigation {...fullscreen} onReset={resetView} />}
       {gl && (
         <Canvas dpr={mini ? [1, 1.25] : [1, 1.75]} frameloop={visible ? 'always' : 'never'} gl={{ antialias: !mini, powerPreference: 'high-performance', alpha: true }}
-          camera={{ fov: 42, near: 0.5, far: Math.max(600, layout.radii.agents * 8), position: [0, 30, 90] }} onPointerMissed={() => { if (!mini) { setFocus(null); setSel(null); } else onNodeClick?.(nodes[0]); }}>
-          <fog attach="fog" args={['#0b0c1d', Math.max(70, layout.radii.agents * 4), Math.max(220, layout.radii.agents * 8)]} />
-          <Scene nodes={nodes} edges={edges} layout={layout} active={active} hot={hot} queue={queue} focus={focus} mini={mini} labels={shownLabels} labelEls={labelEls} sel={sel} hood={hood}
+          camera={{ fov: 42, near: 0.5, far: navigationFar, position: [0, 30, 90] }} onPointerMissed={(e) => { if (dragged.current || e.type !== 'click') return; if (!mini) { setFocus(null); setSel(null); } else onNodeClick?.(nodes[0]); }}>
+          <fog attach="fog" args={['#0b0c1d', navigationFogNear, navigationFar]} />
+          <Scene nodes={nodes} edges={edges} layout={layout} active={active} hot={hot} queue={queue} focus={focus} mini={mini} labels={shownLabels} labelEls={labelEls} sel={sel} hood={hood} viewRevision={viewRevision} dragged={dragged}
             onHover={(n, x, y) => { if (mini) return; setTip(n ? { n, x, y } : null); if (wrap.current) wrap.current.style.cursor = n ? 'pointer' : 'default'; }}
-            onPick={(n) => { if (mini) { onNodeClick?.(n); return; } if (n.cluster === 'agents') { setSel(n.id); setTip(null); return; } setSel(null); setFocus(n.cluster); onNodeClick?.(n); }} />
+            onPick={(n) => { if (mini) { onNodeClick?.(n); return; } if (n.cluster === 'agents') { selectAgent(n.id); return; } setSel(null); setFocus(n.cluster); setViewRevision((v) => v + 1); onNodeClick?.(n); }} />
           {!mini && (
             <EffectComposer multisampling={0}>
               <Bloom intensity={1.15} luminanceThreshold={0.55} luminanceSmoothing={0.25} mipmapBlur radius={0.7} />
@@ -323,18 +329,18 @@ export function NeuralClusters(props: NeuralClustersProps) {
               </span>
             ); })}
       </div>
-      {!mini && hoodInfo?.self && <AgentPanel info={hoodInfo} href={agentHref?.(hoodInfo.self)} onOpen={onOpenAgent} onSelect={(id) => { setSel(id); setTip(null); }} onClose={() => setSel(null)} />}
+      {!mini && hoodInfo?.self && <AgentPanel info={hoodInfo} href={agentHref?.(hoodInfo.self)} onOpen={onOpenAgent} onSelect={selectAgent} onClose={() => setSel(null)} />}
       {!mini && (
         <nav aria-label="Agentes de la red" className="nc3d-list">
           <ul>{nodes.filter((n) => n.cluster === 'agents').map((n) => (
-            <li key={n.id}><button type="button" aria-pressed={sel === n.id} onClick={() => setSel(n.id)}>{n.label}{n.role ? ` · ${n.role}` : ''}</button></li>
+            <li key={n.id}><button type="button" aria-pressed={sel === n.id} onClick={() => selectAgent(n.id)}>{n.label}{n.role ? ` · ${n.role}` : ''}</button></li>
           ))}</ul>
         </nav>
       )}
       {showLegend && (
         <div aria-label="Leyenda" style={{ position: 'absolute', left: 12, bottom: 10, display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 11, color: '#c9cdf0', zIndex: 2 }}>
           {CLUSTER_ORDER.map((k) => (
-            <button key={k} type="button" onClick={() => setFocus((f) => (f === k ? null : k))} aria-pressed={focus === k}
+            <button key={k} type="button" onClick={() => { setSel(null); setFocus((f) => (f === k ? null : k)); setViewRevision((v) => v + 1); }} aria-pressed={focus === k}
               style={{ all: 'unset', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, color: focus === k ? '#fff' : '#c9cdf0', textShadow: focus === k ? `0 0 8px ${rgba(k, 0.9)}` : 'none' }}>
               <span style={{ width: 9, height: 9, borderRadius: 9, background: rgba(k, 1), boxShadow: `0 0 10px ${rgba(k, 0.9)}` }} />{L[k]}
             </button>
@@ -361,7 +367,7 @@ export function AgentPanel({ info, onSelect, onClose, href, onOpen }: { info: Re
   const H = ({ children }: { children: React.ReactNode }) => <div style={{ fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase', opacity: 0.6, margin: '12px 0 4px' }}>{children}</div>;
   return (
     <aside ref={ref} tabIndex={-1} className="nc3d-panel" aria-label={`Agente ${n.label}`} data-testid="agent-panel"
-      style={{ position: 'absolute', top: 12, right: 12, bottom: 44, width: 280, zIndex: 4, overflow: 'auto', padding: '14px 14px 12px', borderRadius: 16, color: '#eef', background: 'linear-gradient(160deg, rgba(40,44,90,.55), rgba(16,18,40,.6))', border: '1px solid rgba(255,255,255,.16)', backdropFilter: 'blur(18px) saturate(140%)', WebkitBackdropFilter: 'blur(18px) saturate(140%)', boxShadow: '0 10px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.12)', animation: 'nc3d-panel .35s ease-out both', outline: 'none' }}>
+      style={{ position: 'absolute', top: 56, right: 12, bottom: 44, width: 'min(280px, calc(100% - 24px))', zIndex: 4, overflow: 'auto', padding: '14px 14px 12px', borderRadius: 16, color: '#eef', background: 'linear-gradient(160deg, rgba(40,44,90,.55), rgba(16,18,40,.6))', border: '1px solid rgba(255,255,255,.16)', backdropFilter: 'blur(18px) saturate(140%)', WebkitBackdropFilter: 'blur(18px) saturate(140%)', boxShadow: '0 10px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.12)', animation: 'nc3d-panel .35s ease-out both', outline: 'none' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.25, wordBreak: 'break-word' }}>{n.label}</div>

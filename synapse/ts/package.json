@@ -1,6 +1,6 @@
 {
   "name": "@cerebro/synapse",
-  "version": "1.6.0-neural-roots.0",
+  "version": "1.6.0-neural-navigation.0",
   "type": "module",
   "description": "Synapse design system — Cerebro operations console, built on TSD Glass Pro (@the-stoical-developers/ds-glass)",
   "main": "dist/index.js",
