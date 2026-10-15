@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
-import { NeuralClusters, type ClusterEvent, type ClusterNode, type ClusterEdge } from '../react/cerebro';
+import { NeuralClusters, NeuralClusters2D, type ClusterEvent, type ClusterNode, type ClusterEdge } from '../react/cerebro';
 
 const conns = [['github', 'GitHub'], ['google', 'Google'], ['posthog', 'PostHog'], ['neon', 'Neon'], ['dataforseo', 'DataForSEO'], ['sentry', 'Sentry'], ['slack', 'Slack']];
 const nodes: ClusterNode[] = [
@@ -32,3 +32,16 @@ export const LiveRun: S = {
   },
 };
 export const Mini: S = { render: () => <div style={{ height: 180, width: 360, background: '#0b0c1a' }}><NeuralClusters mini nodes={nodes} edges={edges} activeIds={['a3']} /></div> };
+
+const forest: ClusterNode[] = [
+  ...nodes,
+  { id: 'atlas', label: 'Atlas', cluster: 'agents' },
+  { id: 'atlas-observer', label: 'Observer', cluster: 'agents', parentId: 'atlas' },
+  { id: 'atlas-check', label: 'Check', cluster: 'agents', parentId: 'atlas-observer' },
+  { id: 'orion', label: 'Orion', cluster: 'agents' },
+  { id: 'orion-reviewer', label: 'Reviewer', cluster: 'agents', parentId: 'orion' },
+];
+const forestEdges: ClusterEdge[] = [...edges, { from: 'atlas-check', to: 'r0' }, { from: 'orion-reviewer', to: 'w0' }];
+export const MultipleRoots: S = { render: () => <div style={{ height: 640 }}><NeuralClusters nodes={forest} edges={forestEdges} activeIds={['atlas-check']} /></div> };
+export const MultipleRootsMini: S = { render: () => <div style={{ height: 180, width: 360 }}><NeuralClusters mini nodes={forest} edges={forestEdges} /></div> };
+export const MultipleRootsFallback: S = { render: () => <div style={{ height: 640, background: '#0b0c1a' }}><NeuralClusters2D nodes={forest} edges={forestEdges} activeIds={['atlas-check']} /></div> };

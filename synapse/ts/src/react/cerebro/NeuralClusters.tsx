@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { brandInitials, resolveBrand } from './brandLogos';
 
 /**
- * NeuralClusters — Cerebro "red neuronal" as five living clusters that talk to each other:
- *   agents (Tú at the centre, one concentric ring per hierarchy level) · read tools (QUERY) ·
+ * NeuralClusters — Cerebro "red neuronal" as living clusters that talk to each other:
+ *   agents (one centre per hierarchy root, concentric rings per level) · read tools (QUERY) ·
  *   write tools (COMMAND) · MCP servers · connections (with bundled brand logos).
  *
  * Purely presentational: the host passes REAL nodes/edges/events. Nothing is simulated —
@@ -107,45 +107,63 @@ export function lineageOf(id: string, nodes: ClusterNode[], edges: ClusterEdge[]
   return lines;
 }
 
-interface Pos { x: number; y: number; r: number }
-/**
- * Deterministic layout in pixel space. Agents: concentric rings by level, leaves spread in DFS
- * order so subtrees stay contiguous, parents at the circular mean of their children.
- * Other clusters: sunflower (golden-angle) packing around their centre. Exported for tests.
- */
-export function layoutClusters(nodes: ClusterNode[], W: number, H: number, nodeR = 5): Map<string, Pos> {
-  const pos = new Map<string, Pos>();
-  const lv = agentLevels(nodes); const maxLv = Math.max(1, ...lv.values());
+/** One real hierarchy branch, independent of agent names or roles. */
+export function agentBranches(nodes: ClusterNode[]): { root: ClusterNode; nodes: ClusterNode[] }[] {
   const agents = nodes.filter((n) => n.cluster === 'agents' && !n.detached);
+  const ids = new Set(agents.map((n) => n.id));
+  const kids = new Map<string, ClusterNode[]>();
+  agents.forEach((n) => { if (n.parentId && ids.has(n.parentId)) kids.set(n.parentId, [...(kids.get(n.parentId) ?? []), n]); });
+  return agents.filter((n) => !n.parentId || !ids.has(n.parentId)).sort((a, b) => a.id.localeCompare(b.id)).map((root) => {
+    const branch: ClusterNode[] = [];
+    const walk = (n: ClusterNode) => { branch.push(n); (kids.get(n.id) ?? []).forEach(walk); };
+    walk(root); return { root, nodes: branch };
+  });
+}
+
+interface Pos { x: number; y: number; r: number }
+export interface AgentGroup2D { rootId: string; nodeIds: string[]; centre: [number, number]; radius: number }
+export interface Layout2D extends Map<string, Pos> { agentGroups: AgentGroup2D[] }
+/** Deterministic pixel layout: each agent root owns a separate region and concentric hierarchy rings. */
+export function layoutClusters(nodes: ClusterNode[], W: number, H: number, nodeR = 5): Layout2D {
+  const pos = Object.assign(new Map<string, Pos>(), { agentGroups: [] as AgentGroup2D[] });
+  const lv = agentLevels(nodes); const branches = agentBranches(nodes);
   const detached = nodes.filter((n) => n.cluster === 'agents' && n.detached);
-  const kids = new Map<string, ClusterNode[]>(); const roots: ClusterNode[] = [];
-  agents.forEach((n) => { const p = n.parentId && lv.has(n.parentId) ? n.parentId : null; if (p) kids.set(p, [...(kids.get(p) ?? []), n]); else roots.push(n); });
   const [ax, ay] = CENTRES.agents; const cx = ax * W, cy = ay * H; const RA = Math.min(W * 0.215, H * 0.44);
-  const leaves: ClusterNode[] = []; const walk = (n: ClusterNode) => { const k = kids.get(n.id) ?? []; if (!k.length) leaves.push(n); k.forEach(walk); };
-  // Single root sits at the centre; a forest gets a virtual centre.
-  roots.forEach(walk);
-  const ang = new Map<string, number>();
-  leaves.forEach((n, i) => ang.set(n.id, (i / Math.max(leaves.length, 1)) * Math.PI * 2 - Math.PI / 2));
-  const meanAng = (n: ClusterNode): number => {
-    if (ang.has(n.id)) return ang.get(n.id)!;
-    const k = kids.get(n.id) ?? []; let sx = 0, sy = 0; k.forEach((c) => { const a = meanAng(c); sx += Math.cos(a); sy += Math.sin(a); });
-    const a = Math.atan2(sy, sx); ang.set(n.id, a); return a;
-  };
-  agents.forEach(meanAng);
-  agents.forEach((n) => {
-    const l = lv.get(n.id) ?? 0; const single = roots.length === 1;
-    const ringFrac = single ? l / maxLv : (l + 1) / (maxLv + 1);
-    const r = ringFrac * RA; const a = ang.get(n.id) ?? 0;
-    pos.set(n.id, { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, r: l === 0 && single ? nodeR * 2.2 : nodeR * Math.max(0.7, 1.45 - l * 0.22) });
+  const columns = Math.max(1, Math.ceil(Math.sqrt(branches.length * W * 0.38 / (H * 0.88))));
+  const rows = Math.max(1, Math.ceil(branches.length / columns));
+  const cellW = W * 0.38 / columns, cellH = H * 0.88 / rows;
+  branches.forEach(({ root, nodes: agents }, index) => {
+    const single = branches.length === 1;
+    const gx = single ? cx : W * 0.055 + cellW * (index % columns + 0.5);
+    const gy = single ? cy : H * 0.06 + cellH * (Math.floor(index / columns) + 0.5);
+    const radius = single ? RA : Math.min(cellW, cellH) * 0.42;
+    const localNodeR = single ? nodeR : Math.min(nodeR, radius / 10);
+    const ringRadius = single ? RA : Math.max(0, radius - localNodeR * 2.2);
+    const maxLv = Math.max(1, ...agents.map((n) => lv.get(n.id) ?? 0));
+    const kids = new Map<string, ClusterNode[]>();
+    agents.forEach((n) => { if (n.parentId) kids.set(n.parentId, [...(kids.get(n.parentId) ?? []), n]); });
+    const leaves = agents.filter((n) => !kids.has(n.id)); const ang = new Map<string, number>();
+    leaves.forEach((n, i) => ang.set(n.id, i / Math.max(leaves.length, 1) * Math.PI * 2 - Math.PI / 2));
+    const meanAng = (n: ClusterNode): number => {
+      if (ang.has(n.id)) return ang.get(n.id)!;
+      let sx = 0, sy = 0; (kids.get(n.id) ?? []).forEach((c) => { const a = meanAng(c); sx += Math.cos(a); sy += Math.sin(a); });
+      const a = Math.atan2(sy, sx); ang.set(n.id, a); return a;
+    };
+    agents.forEach((n) => {
+      const l = lv.get(n.id) ?? 0; const r = l / maxLv * ringRadius; const a = meanAng(n);
+      pos.set(n.id, { x: gx + Math.cos(a) * r, y: gy + Math.sin(a) * r, r: l === 0 ? localNodeR * 2.2 : localNodeR * Math.max(0.7, 1.45 - l * 0.22) });
+    });
+    pos.agentGroups.push({ rootId: root.id, nodeIds: agents.map((n) => n.id), centre: [gx, gy], radius: single ? RA + nodeR * 2.2 : radius });
   });
   detached.forEach((n, i) => { const cols = Math.max(1, Math.ceil(Math.sqrt(detached.length * 3))); pos.set(n.id, { x: cx - RA + (i % cols) * ((RA * 2) / cols), y: Math.min(H - nodeR * 2, cy + RA + nodeR * 4 + Math.floor(i / cols) * nodeR * 3), r: nodeR * 0.7 }); });
   for (const k of CLUSTER_ORDER) {
     if (k === 'agents') continue;
     const list = nodes.filter((n) => n.cluster === k); if (!list.length) continue;
     const [fx, fy] = CENTRES[k]; const ccx = fx * W, ccy = fy * H;
-    const maxR = k === 'connections' ? Math.min(W * 0.075, H * 0.27) : k === 'mcp' ? Math.min(W * 0.065, H * 0.2) : Math.min(W * 0.12, H * 0.2);
-    const step = Math.max(maxR / Math.sqrt(list.length + 0.5), nodeR * (k === 'connections' || k === 'mcp' ? 5 : 4.5));
-    const r = k === 'connections' || k === 'mcp' ? nodeR * 1.9 : nodeR;
+    const maxR = branches.length > 1 ? Math.min(W * (k === 'connections' ? 0.075 : k === 'mcp' ? 0.05 : 0.075), H * 0.2) : k === 'connections' ? Math.min(W * 0.075, H * 0.27) : k === 'mcp' ? Math.min(W * 0.065, H * 0.2) : Math.min(W * 0.12, H * 0.2);
+    const nominalR = k === 'connections' || k === 'mcp' ? nodeR * 1.9 : nodeR;
+    const r = branches.length > 1 ? Math.min(nominalR, maxR * 0.25) : nominalR;
+    const step = branches.length > 1 ? (maxR - r) / Math.sqrt(list.length - 0.5) : Math.max(maxR / Math.sqrt(list.length + 0.5), nodeR * (k === 'connections' || k === 'mcp' ? 5 : 4.5));
     list.forEach((n, i) => {
       const a = i * 2.39996323; const d = list.length === 1 ? 0 : step * Math.sqrt(i + 0.5);
       // Connections cluster is a tall ellipse (right column).
@@ -163,7 +181,7 @@ interface N extends ClusterNode { bx: number; by: number; x: number; y: number; 
 interface E { a: N; b: N; inter: boolean; ph: number; hotUntil: number }
 interface Pulse { pts: N[]; seg: number; t: number; col: RGB; back?: RGB; dur: number }
 
-/** 2D canvas fallback of the five-cluster network (used when WebGL is unavailable). */
+/** 2D canvas fallback of the root-cluster network (used when WebGL is unavailable). */
 export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [], mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini }: NeuralClustersProps) {
   const cvRef = useRef<HTMLCanvasElement>(null); const wrapRef = useRef<HTMLDivElement>(null);
   const [tip, setTip] = useState<{ x: number; y: number; n: ClusterNode } | null>(null);
@@ -206,16 +224,24 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
     };
     const nodeR = (mini ? 2.6 : 4.6) * dpr;
     const lvMap = agentLevels(nodes);
-    let halos: { k: ClusterKind; cx: number; cy: number; rr: number; n: number }[] = []; let rings: { x: number; y: number; r: number }[] = [];
+    let halos: { k: ClusterKind; cx: number; cy: number; rr: number; n: number; label?: string }[] = []; let rings: { x: number; y: number; r: number }[] = [];
     const place = () => {
       const p = layoutClusters(nodes, W, H, nodeR);
       ns.forEach((n) => { const q = p.get(n.id); if (q) { n.bx = q.x; n.by = q.y; n.r = q.r; n.x = q.x; n.y = q.y; } });
       halos = []; rings = [];
+      p.agentGroups.forEach((group) => {
+        const [cx, cy] = group.centre; const root = byId.get(group.rootId)!;
+        halos.push({ k: 'agents', cx, cy, rr: group.radius, n: group.nodeIds.length, label: root.label });
+        const levels = new Set<number>();
+        group.nodeIds.forEach((id) => { const level = lvMap.get(id) ?? 0; const n = byId.get(id)!;
+          if (level > 0 && !levels.has(level)) { levels.add(level); rings.push({ x: cx, y: cy, r: Math.hypot(n.bx - cx, n.by - cy) }); }
+        });
+      });
       for (const k of CLUSTER_ORDER) {
+        if (k === 'agents') continue;
         const list = ns.filter((n) => n.cluster === k); if (!list.length) continue;
         let sx = 0, sy = 0; list.forEach((n) => { sx += n.bx; sy += n.by; }); const cx = sx / list.length, cy = sy / list.length;
         let rr = 0; list.forEach((n) => { rr = Math.max(rr, Math.hypot(n.bx - cx, n.by - cy)); }); halos.push({ k, cx, cy, rr: rr + 22 * dpr, n: list.length });
-        if (k === 'agents') { const root = list.find((n) => (lvMap.get(n.id) ?? 0) === 0); if (root) new Set(lvMap.values()).forEach((l) => { const ex = l ? list.find((n) => lvMap.get(n.id) === l) : undefined; if (ex) rings.push({ x: root.bx, y: root.by, r: Math.hypot(ex.bx - root.bx, ex.by - root.by) }); }); }
       }
     };
     const resize = () => { W = cv.width = Math.max(1, Math.round(cv.clientWidth * dpr)); H = cv.height = Math.max(1, Math.round(cv.clientHeight * dpr)); place(); setFocusK(focusRef.current); view = { ...target }; };
@@ -255,7 +281,7 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
       ctx.setTransform(view.k, 0, 0, view.k, view.x, view.y);
       // organic drift
       ns.forEach((n) => {
-        const w = reduce ? 0 : 1.6 * dpr; n.x = n.bx + Math.sin(t * 0.0005 + n.ph) * w; n.y = n.by + Math.cos(t * 0.00043 + n.ph * 1.3) * w;
+        const w = reduce || (n.cluster === 'agents' && !n.parentId && !n.detached) ? 0 : 1.6 * dpr; n.x = n.bx + Math.sin(t * 0.0005 + n.ph) * w; n.y = n.by + Math.cos(t * 0.00043 + n.ph * 1.3) * w;
         const live = act.has(n.id) || n.hotUntil > t; n.lab += ((live ? 1 : 0) - n.lab) * Math.min(1, dt / 260); n.act *= Math.pow(0.5, dt / 700);
       });
       // cluster halos + titles (precomputed in place())
@@ -263,9 +289,9 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
       for (const h of halos) {
         const c = CLUSTER_COLORS[h.k]; const R = h.rr * (reduce ? 1 : 1 + Math.sin(t * 0.0007 + h.k.length) * 0.015) * 2.2;
         ctx.globalAlpha = focusRef.current === h.k ? 0.2 : 0.11; ctx.drawImage(sprite(c), h.cx - R / 2, h.cy - R / 2, R, R); ctx.globalAlpha = 1;
-        if (!mini) { ctx.font = `600 ${fsz}px ui-sans-serif, system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = rgba(c, 0.8); ctx.fillText(labels[h.k].toUpperCase() + ` · ${h.n}`, h.cx, h.cy - h.rr - 4 * dpr); }
+        if (!mini) { ctx.font = `600 ${fsz}px ui-sans-serif, system-ui`; ctx.textAlign = 'center'; ctx.fillStyle = rgba(c, 0.8); ctx.fillText((h.label ?? labels[h.k]).toUpperCase() + ` · ${h.n}`, h.cx, h.cy - h.rr - 4 * dpr); }
       }
-      if (!mini) { ctx.strokeStyle = rgba(CLUSTER_COLORS.agents, 0.1); ctx.lineWidth = dpr; ctx.setLineDash([2 * dpr, 6 * dpr]); rings.forEach((r) => { ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, 6.283); ctx.stroke(); }); ctx.setLineDash([]); }
+      { ctx.strokeStyle = rgba(CLUSTER_COLORS.agents, 0.1); ctx.lineWidth = dpr; ctx.setLineDash([2 * dpr, 6 * dpr]); rings.forEach((r) => { ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, 6.283); ctx.stroke(); }); ctx.setLineDash([]); }
       // edges
       es.forEach((e) => {
         const hot = e.hotUntil > t || (act.has(e.a.id) && act.has(e.b.id));
@@ -303,14 +329,14 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
           if (n.logo) { const s = (n.r * 1.25) / 12; ctx.save(); ctx.translate(n.x - 12 * s, n.y - 12 * s); ctx.scale(s, s); ctx.globalAlpha = on ? 1 : 0.55; ctx.fillStyle = luminous(n.logoHex); ctx.fill(n.logo); ctx.restore(); ctx.globalAlpha = 1; }
           else { ctx.fillStyle = rgba(base, on ? 1 : 0.6); ctx.font = `700 ${Math.round(n.r * 0.85)}px ui-sans-serif, system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(n.initials, n.x, n.y + 0.5); ctx.textBaseline = 'alphabetic'; }
         } else {
-          const lv = n.cluster === 'agents' && !n.parentId; const r = n.r * (1 + n.act * 0.35);
+          const lv = n.cluster === 'agents' && !n.parentId && !n.detached; const r = n.r * (1 + n.act * 0.35);
           ctx.fillStyle = rgba(base, on ? 1 : 0.55); ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 6.283); ctx.fill();
           ctx.fillStyle = rgba(mix(base, [255, 255, 255], 0.7), on ? 0.9 : 0.5); ctx.beginPath(); ctx.arc(n.x - r * 0.3, n.y - r * 0.3, r * 0.4, 0, 6.283); ctx.fill();
           if (lv) { ctx.strokeStyle = rgba(base, 0.5); ctx.lineWidth = dpr; ctx.beginPath(); ctx.arc(n.x, n.y, r + 4 * dpr + (reduce ? 0 : Math.sin(t * 0.002) * dpr), 0, 6.283); ctx.stroke(); }
         }
         // labels only for live nodes (fade in/out); root "Tú" always named
-        const la = n.cluster === 'agents' && !n.parentId ? 1 : n.lab;
-        if (la > 0.03 && !(mini && !(n.cluster === 'agents' && !n.parentId))) {
+        const la = n.cluster === 'agents' && !n.parentId && !n.detached ? 1 : n.lab;
+        if (la > 0.03 && !(mini && !(n.cluster === 'agents' && !n.parentId && !n.detached))) {
           ctx.globalAlpha = la; ctx.font = `${n.parentId ? 500 : 700} ${(mini ? 8 : 10.5) * dpr}px ui-sans-serif, system-ui`; ctx.textAlign = 'center';
           const txt = n.label.length > 26 ? n.label.slice(0, 25) + '…' : n.label; const y = n.y + n.r + 12 * dpr;
           ctx.lineWidth = 3 * dpr; ctx.strokeStyle = 'rgba(10,10,24,.8)'; ctx.strokeText(txt, n.x, y); ctx.fillStyle = 'rgba(240,242,255,.95)'; ctx.fillText(txt, n.x, y); ctx.globalAlpha = 1;
@@ -344,7 +370,7 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
   const lineage = tip ? lineageOf(tip.n.id, nodes, edges) : [];
   return (
     <div ref={wrapRef} className={className} data-testid="neural-clusters" style={{ position: 'relative', width: '100%', height, ...style }}>
-      <canvas ref={cvRef} role="img" aria-label={`Red neuronal: ${nodes.length} nodos en ${CLUSTER_ORDER.length} clústeres, ${active.size} activos`} style={{ width: '100%', height: '100%', display: 'block' }} />
+      <canvas ref={cvRef} role="img" aria-label={`Red neuronal: ${nodes.length} nodos en ${agentBranches(nodes).length + CLUSTER_ORDER.length - 1} clústeres, ${active.size} activos`} style={{ width: '100%', height: '100%', display: 'block' }} />
       {tip && (
         <div role="tooltip" style={{ position: 'absolute', left: Math.min(tip.x + 14, (wrapRef.current?.clientWidth ?? 9999) - 260), top: tip.y + 14, maxWidth: 260, pointerEvents: 'none', background: 'rgba(16,18,34,.92)', border: `1px solid ${rgba(CLUSTER_COLORS[tip.n.cluster], 0.5)}`, borderRadius: 10, padding: '8px 10px', color: '#eef', fontSize: 12, lineHeight: 1.4, backdropFilter: 'blur(8px)', zIndex: 2 }}>
           <div style={{ fontWeight: 700 }}>{tip.n.label}</div>

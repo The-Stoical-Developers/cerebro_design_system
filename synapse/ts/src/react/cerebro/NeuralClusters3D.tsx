@@ -7,49 +7,56 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 import { brandInitials, resolveBrand } from './brandLogos';
 import {
-  CLUSTER_COLORS, CLUSTER_ORDER, DEFAULT_CLUSTER_LABELS, NeuralClusters2D, agentLevels, lineageOf, withAncestors,
+  CLUSTER_COLORS, CLUSTER_ORDER, DEFAULT_CLUSTER_LABELS, NeuralClusters2D, agentBranches, agentLevels, lineageOf, withAncestors,
   type ClusterEdge, type ClusterEvent, type ClusterKind, type ClusterNode, type NeuralClustersProps,
 } from './NeuralClusters';
 
 /** Spacing between concentric hierarchy rings (world units). */
 export const RING_GAP = 7;
 type V3 = [number, number, number];
-export interface Layout3D { pos: Map<string, V3>; centres: Record<ClusterKind, V3>; radii: Record<ClusterKind, number>; rings: { level: number; radius: number; count: number }[] }
+export interface AgentGroup3D { rootId: string; nodeIds: string[]; centre: V3; radius: number }
+export interface Layout3D { pos: Map<string, V3>; centres: Record<ClusterKind, V3>; radii: Record<ClusterKind, number>; rings: { rootId: string; centre: V3; level: number; radius: number; count: number }[]; agentGroups: AgentGroup3D[] }
 
 /**
  * Deterministic 3D layout.
- * Agents: the root at the origin; ONE ring per hierarchy level holding ONLY that level's agents (ring l radius = l·RING_GAP),
+ * Agents: each root at its own centre; ONE ring per hierarchy level holding ONLY that level's agents (ring l radius = l·RING_GAP),
  * ordered depth-first so subtrees stay contiguous. Detached agents (outside the hierarchy) float in a loose cloud below.
  * Other clusters: Fibonacci spheres to the right, spaced by their radii. Exported for tests.
  */
 export function layoutClusters3D(nodes: ClusterNode[]): Layout3D {
   const pos = new Map<string, V3>();
   const lv = agentLevels(nodes);
-  const agents = nodes.filter((n) => n.cluster === 'agents' && !n.detached);
-  const kids = new Map<string, ClusterNode[]>(); const roots: ClusterNode[] = [];
-  agents.forEach((n) => { const p = n.parentId && lv.has(n.parentId) ? n.parentId : null; if (p) kids.set(p, [...(kids.get(p) ?? []), n]); else roots.push(n); });
-  const order: ClusterNode[] = []; const walk = (n: ClusterNode) => { order.push(n); (kids.get(n.id) ?? []).forEach(walk); }; roots.forEach(walk);
-  const byLevel = new Map<number, ClusterNode[]>();
-  order.forEach((n) => { const l = lv.get(n.id) ?? 0; byLevel.set(l, [...(byLevel.get(l) ?? []), n]); });
-  const rings: Layout3D['rings'] = [];
-  const maxLv = Math.max(0, ...byLevel.keys());
-  [...byLevel.keys()].sort((a, b) => a - b).forEach((l) => {
-    const list = byLevel.get(l)!;
-    if (l === 0 && list.length === 1) { pos.set(list[0].id, [0, 0, 0]); return; }
-    const r = (l === 0 ? 1 : l) * RING_GAP; rings.push({ level: l, radius: r, count: list.length });
-    list.forEach((n, i) => { const a = (i / list.length) * Math.PI * 2; pos.set(n.id, [Math.cos(a) * r, (l % 2 ? 0.6 : -0.6), Math.sin(a) * r]); });
+  const branches = agentBranches(nodes);
+  const rings: Layout3D['rings'] = []; const agentGroups: AgentGroup3D[] = [];
+  let previous: AgentGroup3D | undefined;
+  branches.forEach(({ root, nodes: branch }) => {
+    const byLevel = new Map<number, ClusterNode[]>();
+    branch.forEach((n) => { const l = lv.get(n.id) ?? 0; byLevel.set(l, [...(byLevel.get(l) ?? []), n]); });
+    const radius = Math.max(RING_GAP, ...[...byLevel.keys()].map((l) => l * RING_GAP));
+    const centre: V3 = [previous ? previous.centre[0] - previous.radius - 9 - radius : 0, 0, 0];
+    const group = { rootId: root.id, nodeIds: branch.map((n) => n.id), centre, radius };
+    agentGroups.push(group); previous = group;
+    pos.set(root.id, centre);
+    [...byLevel.keys()].sort((a, b) => a - b).forEach((l) => {
+      if (l === 0) return;
+      const list = byLevel.get(l)!; const r = l * RING_GAP;
+      rings.push({ rootId: root.id, centre, level: l, radius: r, count: list.length });
+      list.forEach((n, i) => { const a = i / list.length * Math.PI * 2; pos.set(n.id, [centre[0] + Math.cos(a) * r, l % 2 ? 0.6 : -0.6, centre[2] + Math.sin(a) * r]); });
+    });
   });
-  const RA = Math.max(RING_GAP, maxLv * RING_GAP);
+  const left = Math.min(-RING_GAP, ...agentGroups.map((g) => g.centre[0] - g.radius));
+  const right = Math.max(RING_GAP, ...agentGroups.map((g) => g.centre[0] + g.radius));
+  const RA = (right - left) / 2;
   const detached = nodes.filter((n) => n.cluster === 'agents' && n.detached);
-  detached.forEach((n, i) => { const a = i * 2.39996; const d = 1.6 * Math.sqrt(i + 0.5); pos.set(n.id, [Math.cos(a) * d * 1.8, -RA * 0.55 - 4, Math.sin(a) * d]); });
+  detached.forEach((n, i) => { const a = i * 2.39996; const d = 1.6 * Math.sqrt(i + 0.5); pos.set(n.id, [Math.cos(a) * d * 1.8, -Math.max(RING_GAP, ...agentGroups.map((g) => g.radius)) * 0.55 - 4, Math.sin(a) * d]); });
   const sph = (k: ClusterKind) => nodes.filter((n) => n.cluster === k);
   const radius = (n: number, spread: number) => Math.max(3, spread * Math.sqrt(n));
   const radii = { agents: RA, read: radius(sph('read').length, 2.1), write: radius(sph('write').length, 2.1), mcp: radius(sph('mcp').length, 2.6), connections: radius(sph('connections').length, 2.6) } as Record<ClusterKind, number>;
   const GAP = 9;
-  const xTools = RA + GAP + Math.max(radii.read, radii.write);
+  const xTools = right + GAP + Math.max(radii.read, radii.write);
   const xMcp = xTools + Math.max(radii.read, radii.write) + GAP + radii.mcp;
   const xConn = xMcp + radii.mcp + GAP + radii.connections;
-  const centres: Record<ClusterKind, V3> = { agents: [0, 0, 0], read: [xTools, radii.read + 2, -4], write: [xTools, -radii.write - 2, 4], mcp: [xMcp, 0, 0], connections: [xConn, 0, 0] };
+  const centres: Record<ClusterKind, V3> = { agents: [(left + right) / 2, 0, 0], read: [xTools, radii.read + 2, -4], write: [xTools, -radii.write - 2, 4], mcp: [xMcp, 0, 0], connections: [xConn, 0, 0] };
   (['read', 'write', 'mcp', 'connections'] as ClusterKind[]).forEach((k) => {
     const list = sph(k); const R = radii[k]; const c = centres[k];
     list.forEach((n, i) => {
@@ -58,7 +65,7 @@ export function layoutClusters3D(nodes: ClusterNode[]): Layout3D {
       pos.set(n.id, [c[0] + Math.cos(th) * rr * R, c[1] + y * R, c[2] + Math.sin(th) * rr * R]);
     });
   });
-  return { pos, centres, radii, rings };
+  return { pos, centres, radii, rings, agentGroups };
 }
 
 /** Selected agent + its parent + its children (the "neighbourhood" lit on click). Exported for tests. */
@@ -118,10 +125,11 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3)); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3)); return g;
   }, [edgeList]);
   useEffect(() => () => lineGeo.dispose(), [lineGeo]);
-  const ringGeo = useMemo(() => layout.rings.map((r) => { const pts = Array.from({ length: 129 }, (_, i) => { const a = (i / 128) * Math.PI * 2; return new THREE.Vector3(Math.cos(a) * r.radius, r.level % 2 ? 0.6 : -0.6, Math.sin(a) * r.radius); }); return new THREE.BufferGeometry().setFromPoints(pts); }), [layout]);
+  const ringGeo = useMemo(() => layout.rings.map((r) => { const pts = Array.from({ length: 129 }, (_, i) => { const a = (i / 128) * Math.PI * 2; return new THREE.Vector3(r.centre[0] + Math.cos(a) * r.radius, r.centre[1] + (r.level % 2 ? 0.6 : -0.6), r.centre[2] + Math.sin(a) * r.radius); }); return new THREE.BufferGeometry().setFromPoints(pts); }), [layout]);
+  useEffect(() => () => ringGeo.forEach((g) => g.dispose()), [ringGeo]);
   const pulses = useRef<Pulse[]>([]);
   const camT = useRef({ target: new THREE.Vector3(), dist: 60 });
-  const span = useMemo(() => { const c = layout.centres; return { mid: new THREE.Vector3((c.connections[0] + layout.radii.connections - layout.radii.agents) / 2, 0, 0), dist: (c.connections[0] + layout.radii.connections + layout.radii.agents) * (mini ? 1.0 : 0.8) }; }, [layout, mini]);
+  const span = useMemo(() => { const c = layout.centres; return { mid: new THREE.Vector3((c.connections[0] + layout.radii.connections + c.agents[0] - layout.radii.agents) / 2, 0, 0), dist: (c.connections[0] + layout.radii.connections - c.agents[0] + layout.radii.agents) * (mini ? 1.0 : 0.8) }; }, [layout, mini]);
   useEffect(() => {
     const sp = sel ? layout.pos.get(sel) : undefined;
     if (sp) { camT.current.target.set(...sp); camT.current.dist = 24 + Math.min(16, hood.size); return; }
@@ -206,6 +214,12 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
   return (
     <>
       {!mini && <Sparkles count={80} scale={[span.dist * 1.6, 30, 40]} position={span.mid.toArray()} size={1.6} speed={0.2} opacity={0.35} color="#9aa4ff" />}
+      {layout.agentGroups.map((g) => (
+        <mesh key={g.rootId} position={g.centre} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+          <circleGeometry args={[g.radius + 1.5, 64]} />
+          <meshBasicMaterial color={col('agents')} transparent opacity={0.035} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
       {ringGeo.map((g, i) => (
         // @ts-expect-error r3f line element (not SVG line)
         <line key={i} geometry={g}><lineBasicMaterial color={col('agents').multiplyScalar(0.35)} transparent opacity={0.35} toneMapped={false} /></line>
@@ -264,7 +278,8 @@ export function NeuralClusters(props: NeuralClustersProps) {
   const [sel, setSel] = useState<string | null>(null);
   const hoodInfo = useMemo(() => (sel ? agentNeighborhood(sel, nodes) : null), [sel, nodes]);
   const hood = useMemo(() => hoodInfo?.ids ?? new Set<string>(), [hoodInfo]);
-  const shownLabels = hood.size ? hood : labels;
+  const shownLabels = new Set(hood.size ? hood : labels);
+  layout.agentGroups.forEach((g) => shownLabels.add(g.rootId));
   const labelEls = useRef(new Map<string, HTMLSpanElement>());
   const nodeById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const [tip, setTip] = useState<{ n: ClusterNode; x: number; y: number } | null>(null);
@@ -275,12 +290,12 @@ export function NeuralClusters(props: NeuralClustersProps) {
   const rgba = (k: ClusterKind, a: number) => `rgba(${CLUSTER_COLORS[k].join(',')},${a})`;
   return (
     <div ref={wrap} className={className} data-testid="neural-clusters" style={{ position: 'relative', width: '100%', height, borderRadius: 14, overflow: 'hidden', background: 'radial-gradient(120% 90% at 30% 40%, #171a3a 0%, #0b0c1d 60%, #07070f 100%)', ...style }}
-      role="group" aria-label={`Red neuronal 3D: ${nodes.length} nodos en ${CLUSTER_ORDER.length} clústeres, ${active.size} activos`}>
+      role="group" aria-label={`Red neuronal 3D: ${nodes.length} nodos en ${layout.agentGroups.length + CLUSTER_ORDER.length - 1} clústeres, ${active.size} activos`}>
       <style>{'@keyframes nc3d-fade{from{opacity:0}to{opacity:1}}@keyframes nc3d-in{from{opacity:0;filter:none;transform:translateY(4px)}to{opacity:1;transform:none}}@keyframes nc3d-panel{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}[data-nc3d-tip]{position:relative}[data-nc3d-tip]:hover::after,[data-nc3d-tip]:focus-visible::after{content:attr(data-nc3d-tip);position:absolute;right:0;top:calc(100% + 6px);white-space:nowrap;font:500 11px ui-sans-serif,system-ui;color:#eef;background:rgba(16,18,34,.95);border:1px solid rgba(167,139,250,.6);border-radius:6px;padding:3px 7px;z-index:6;pointer-events:none;text-shadow:none}.nc3d-verficha{all:unset;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;color:#e9e5ff;background:rgba(167,139,250,.18);border:1px solid rgba(167,139,250,.5);pointer-events:auto;transition:box-shadow .15s,background .15s}.nc3d-verficha:hover,.nc3d-verficha:focus-visible{background:rgba(167,139,250,.38);box-shadow:0 0 12px rgba(167,139,250,.8);outline:none}.nc3d-verficha.sm{width:20px;height:20px;border-radius:6px;margin-left:6px;vertical-align:middle}.nc3d-list{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.nc3d-list:focus-within{width:auto;height:auto;clip:auto;left:12px;top:12px;max-height:60%;overflow:auto;z-index:4;background:rgba(16,18,34,.92);border:1px solid rgba(160,140,255,.5);border-radius:10px;padding:6px}.nc3d-list ul{list-style:none;margin:0;padding:0}.nc3d-list button{all:unset;display:block;cursor:pointer;color:#eef;font-size:12px;padding:3px 8px;border-radius:6px}.nc3d-list button:focus-visible{outline:2px solid #a78bfa}.nc3d-panel button.nc3d-link{all:unset;cursor:pointer;display:block;padding:5px 8px;border-radius:8px;color:#eef;font-size:12px}.nc3d-panel button.nc3d-link:hover,.nc3d-panel button.nc3d-link:focus-visible{background:rgba(167,139,250,.22);box-shadow:0 0 0 1px rgba(167,139,250,.6);outline:none}'}</style>
       {gl && (
         <Canvas dpr={mini ? [1, 1.25] : [1, 1.75]} frameloop={visible ? 'always' : 'never'} gl={{ antialias: !mini, powerPreference: 'high-performance', alpha: true }}
-          camera={{ fov: 42, near: 0.5, far: 600, position: [0, 30, 90] }} onPointerMissed={() => { if (!mini) { setFocus(null); setSel(null); } else onNodeClick?.(nodes[0]); }}>
-          <fog attach="fog" args={['#0b0c1d', 70, 220]} />
+          camera={{ fov: 42, near: 0.5, far: Math.max(600, layout.radii.agents * 8), position: [0, 30, 90] }} onPointerMissed={() => { if (!mini) { setFocus(null); setSel(null); } else onNodeClick?.(nodes[0]); }}>
+          <fog attach="fog" args={['#0b0c1d', Math.max(70, layout.radii.agents * 4), Math.max(220, layout.radii.agents * 8)]} />
           <Scene nodes={nodes} edges={edges} layout={layout} active={active} hot={hot} queue={queue} focus={focus} mini={mini} labels={shownLabels} labelEls={labelEls} sel={sel} hood={hood}
             onHover={(n, x, y) => { if (mini) return; setTip(n ? { n, x, y } : null); if (wrap.current) wrap.current.style.cursor = n ? 'pointer' : 'default'; }}
             onPick={(n) => { if (mini) { onNodeClick?.(n); return; } if (n.cluster === 'agents') { setSel(n.id); setTip(null); return; } setSel(null); setFocus(n.cluster); onNodeClick?.(n); }} />
@@ -298,18 +313,16 @@ export function NeuralClusters(props: NeuralClustersProps) {
           {lineage.map((l) => <div key={l} style={{ marginTop: 3 }}>{l}</div>)}
         </div>
       )}
-      {!mini && (
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 1 }}>
-          {[...shownLabels].map((id) => { const n = nodeById.get(id); if (!n) return null; const root = n.cluster === 'agents' && !n.parentId && !n.detached;
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', zIndex: 1 }}>
+          {[...shownLabels].map((id) => { const n = nodeById.get(id); if (!n || (mini && !layout.agentGroups.some((g) => g.rootId === id))) return null; const root = n.cluster === 'agents' && !n.parentId && !n.detached;
             return (
               <span key={id} ref={(el) => { if (el) labelEls.current.set(id, el); else labelEls.current.delete(id); }}
-                style={{ position: 'absolute', left: 0, top: 0, visibility: 'hidden', font: `${root ? 700 : 500} ${root ? 13 : 11}px ui-sans-serif, system-ui`, color: '#f0f2ff', whiteSpace: 'nowrap', textShadow: '0 0 6px rgba(120,130,255,.9), 0 1px 2px #000', animation: 'nc3d-fade .6s ease-out both' }}>
+                style={{ position: 'absolute', left: 0, top: 0, visibility: 'hidden', font: `${root ? 700 : 500} ${mini ? 10 : root ? 13 : 11}px ui-sans-serif, system-ui`, color: '#f0f2ff', whiteSpace: 'nowrap', textShadow: '0 0 6px rgba(120,130,255,.9), 0 1px 2px #000', animation: 'nc3d-fade .6s ease-out both' }}>
                 {n.label.length > 28 ? n.label.slice(0, 27) + '…' : n.label}
                 {id === sel && (agentHref?.(n) || onOpenAgent) && <VerFicha n={n} href={agentHref?.(n)} onOpen={onOpenAgent} small />}
               </span>
             ); })}
-        </div>
-      )}
+      </div>
       {!mini && hoodInfo?.self && <AgentPanel info={hoodInfo} href={agentHref?.(hoodInfo.self)} onOpen={onOpenAgent} onSelect={(id) => { setSel(id); setTip(null); }} onClose={() => setSel(null)} />}
       {!mini && (
         <nav aria-label="Agentes de la red" className="nc3d-list">
@@ -333,7 +346,7 @@ export function NeuralClusters(props: NeuralClustersProps) {
       )}
       {!mini && !hoodInfo && layout.rings.length > 0 && (
         <div style={{ position: 'absolute', right: 12, top: 10, fontSize: 11, color: '#aab0e0', textAlign: 'right', lineHeight: 1.5, zIndex: 2 }}>
-          {layout.rings.map((r) => <div key={r.level}>Nivel {r.level}: {r.count}</div>)}
+          {layout.rings.map((r) => <div key={`${r.rootId}:${r.level}`}>{layout.agentGroups.length > 1 ? `${nodeById.get(r.rootId)?.label} · ` : ''}Nivel {r.level}: {r.count}</div>)}
         </div>
       )}
     </div>
