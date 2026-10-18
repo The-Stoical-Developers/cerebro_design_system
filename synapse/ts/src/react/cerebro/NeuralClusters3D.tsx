@@ -9,7 +9,7 @@ import { NeuralCamera } from './NeuralCamera';
 import { NeuralNavigation, useNeuralFullscreen } from './NeuralNavigation';
 import { brandInitials, resolveBrand } from './brandLogos';
 import {
-  CLUSTER_COLORS, CLUSTER_ORDER, DEFAULT_CLUSTER_LABELS, NeuralClusters2D, agentBranches, agentLevels, lineageOf, withAncestors,
+  CLUSTER_COLORS, CLUSTER_ORDER, DEFAULT_CLUSTER_LABELS, NeuralClusters2D, agentBranches, agentLevels, lineageOf, activityNodes, activityEdgeKey, activityEdgeIsHot, activityEventAllowed, activityPulseStatus,
   type ClusterEdge, type ClusterEvent, type ClusterKind, type ClusterNode, type NeuralClustersProps,
 } from './NeuralClusters';
 
@@ -95,12 +95,16 @@ function logoTexture(n: ClusterNode): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+const EMPTY_EDGES: ClusterEdge[] = [];
+const EMPTY_EVENTS: ClusterEvent[] = [];
+const EMPTY_IDS: string[] = [];
+
 interface Pulse { pts: string[]; seg: number; t: number; color: THREE.Color; back?: THREE.Color; dur: number }
-interface SceneProps { nodes: ClusterNode[]; edges: ClusterEdge[]; layout: Layout3D; active: Set<string>; hot: React.MutableRefObject<Map<string, number>>; queue: React.MutableRefObject<ClusterEvent[]>; focus: ClusterKind | null; mini: boolean; onHover: (n: ClusterNode | null, x: number, y: number) => void; onPick: (n: ClusterNode) => void; labels: Set<string>; labelEls: React.MutableRefObject<Map<string, HTMLSpanElement>>; sel: string | null; hood: Set<string>; viewRevision: number; dragged: React.MutableRefObject<boolean> }
+interface SceneProps { liveActivity: boolean; activeEdges: Set<string>; clearActivity: boolean; nodes: ClusterNode[]; edges: ClusterEdge[]; layout: Layout3D; active: Set<string>; hot: React.MutableRefObject<Map<string, number>>; queue: React.MutableRefObject<ClusterEvent[]>; focus: ClusterKind | null; mini: boolean; onHover: (n: ClusterNode | null, x: number, y: number) => void; onPick: (n: ClusterNode) => void; labels: Set<string>; labelEls: React.MutableRefObject<Map<string, HTMLSpanElement>>; sel: string | null; hood: Set<string>; viewRevision: number; dragged: React.MutableRefObject<boolean> }
 
 const SEG = 8; const MAX_PULSES = 120; const TRAIL = 5;
 
-function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover, onPick, labelEls, sel, hood, viewRevision, dragged }: SceneProps) {
+function Scene({ liveActivity, activeEdges, clearActivity, nodes, edges, layout, active, hot, queue, focus, mini, onHover, onPick, labelEls, sel, hood, viewRevision, dragged }: SceneProps) {
   const hit = useRef<THREE.InstancedMesh>(null);
   const { camera, gl } = useThree();
   const sphereNodes = useMemo(() => nodes.filter((n) => n.cluster !== 'mcp' && n.cluster !== 'connections'), [nodes]);
@@ -130,6 +134,7 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
   const ringGeo = useMemo(() => layout.rings.map((r) => { const pts = Array.from({ length: 129 }, (_, i) => { const a = (i / 128) * Math.PI * 2; return new THREE.Vector3(r.centre[0] + Math.cos(a) * r.radius, r.centre[1] + (r.level % 2 ? 0.6 : -0.6), r.centre[2] + Math.sin(a) * r.radius); }); return new THREE.BufferGeometry().setFromPoints(pts); }), [layout]);
   useEffect(() => () => ringGeo.forEach((g) => g.dispose()), [ringGeo]);
   const pulses = useRef<Pulse[]>([]);
+  useEffect(() => { if (liveActivity && clearActivity) { pulses.current = []; act.fill(0); if (pulseMesh.current) pulseMesh.current.count = 0; } }, [liveActivity, clearActivity, act]);
   const span = useMemo(() => { const c = layout.centres; return { mid: new THREE.Vector3((c.connections[0] + layout.radii.connections + c.agents[0] - layout.radii.agents) / 2, 0, 0), dist: (c.connections[0] + layout.radii.connections - c.agents[0] + layout.radii.agents) * (mini ? 1.0 : 0.8) }; }, [layout, mini]);
   const cameraTarget = sel ? layout.pos.get(sel) : focus ? layout.centres[focus] : undefined;
   const cameraDistance = sel ? 24 + Math.min(16, hood.size) : focus ? Math.max(18, layout.radii[focus] * 3.2) : span.dist;
@@ -146,7 +151,7 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
       act[i] = Math.max(0, act[i] - dt * 0.9); });
     // spheres (instanced): breathing + activity glow
     const im = inst.current;
-    if (im) sphereNodes.forEach((n, k) => { const i = idx.get(n.id)!; const on = active.has(n.id) || (hot.current.get(n.id) ?? 0) > now;
+    if (im) sphereNodes.forEach((n, k) => { const i = idx.get(n.id)!; const on = active.has(n.id) || (!liveActivity && (hot.current.get(n.id) ?? 0) > now);
       const root = n.cluster === 'agents' && !n.parentId && !n.detached; const l = lv.get(n.id) ?? 3;
       const base = root ? 1.5 : n.cluster === 'agents' ? Math.max(0.32, 0.75 - l * 0.1) : 0.42;
       const s = base * (1 + Math.sin(t * 1.6 + phase[i]) * 0.07 + act[i] * 0.6 + (on ? 0.25 : 0));
@@ -158,14 +163,14 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
     if (hit.current) { hit.current.instanceMatrix.needsUpdate = true; hit.current.computeBoundingSphere(); }
     if (im) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
     // logo sprites
-    logoNodes.forEach((n, k) => { const sp = sprites.current[k]; if (!sp) return; const i = idx.get(n.id)!; const on = active.has(n.id) || (hot.current.get(n.id) ?? 0) > now;
+    logoNodes.forEach((n, k) => { const sp = sprites.current[k]; if (!sp) return; const i = idx.get(n.id)!; const on = active.has(n.id) || (!liveActivity && (hot.current.get(n.id) ?? 0) > now);
       sp.position.set(cur[i * 3], cur[i * 3 + 1], cur[i * 3 + 2]); const s = 2.1 * (1 + Math.sin(t * 1.3 + phase[i]) * 0.05 + act[i] * 0.4); sp.scale.set(s, s, 1);
       (sp.material as THREE.SpriteMaterial).color.setScalar(hood.size ? 0.12 : on ? 1.6 + act[i] : 0.75 + act[i]); });
     // synapses (curved for inter-cluster)
     const P = lineGeo.getAttribute('position') as THREE.BufferAttribute; const C = lineGeo.getAttribute('color') as THREE.BufferAttribute;
     const pa = P.array as Float32Array, ca = C.array as Float32Array; let o = 0;
     edgeList.forEach((e) => {
-      const hotE = (active.has(nodes[e.a].id) && active.has(nodes[e.b].id)) || ((hot.current.get(nodes[e.a].id) ?? 0) > now && (hot.current.get(nodes[e.b].id) ?? 0) > now);
+      const hotE = activityEdgeIsHot(nodes[e.a].id, nodes[e.b].id, active, activeEdges, liveActivity, (hot.current.get(nodes[e.a].id) ?? 0) > now && (hot.current.get(nodes[e.b].id) ?? 0) > now);
       tmp.c.copy(col(nodes[e.inter ? e.b : e.a].cluster)).lerp(col(nodes[e.a].cluster), 0.5).multiplyScalar(hotE ? 1.8 : e.inter ? 0.1 : 0.22);
       if (hood.size) { const hh = hood.has(nodes[e.a].id) && hood.has(nodes[e.b].id) && (nodes[e.a].id === sel || nodes[e.b].id === sel); tmp.c.copy(col('agents')).multiplyScalar(hh ? 3 : 0.02); }
       const segs = e.inter ? SEG : 1;
@@ -178,17 +183,17 @@ function Scene({ nodes, edges, layout, active, hot, queue, focus, mini, onHover,
     P.needsUpdate = true; C.needsUpdate = true;
     // real-event impulses
     while (queue.current.length) {
-      const ev = queue.current.shift()!; const pts = ev.path.filter((id) => idx.has(id)); if (!pts.length) continue;
+      const ev = queue.current.shift()!; if (liveActivity && !activityEventAllowed(ev, nodes, edges)) continue; const status = activityPulseStatus(ev.status, liveActivity); const pts = ev.path.filter((id) => idx.has(id)); if (!pts.length) continue;
       pts.forEach((id) => hot.current.set(id, now + 5000));
-      if (pts.length === 1) { act[idx.get(pts[0])!] = 1; continue; }
+      if (pts.length === 1) { if (!liveActivity) act[idx.get(pts[0])!] = 1; continue; }
       const allAgents = pts.every((id) => nodes[idx.get(id)!].cluster === 'agents');
-      pulses.current.push({ pts, seg: 0, t: 0, color: ev.status === 'error' ? ERR.clone() : allAgents ? col('agents').multiplyScalar(2.2) : new THREE.Color(1.6, 1.8, 2.4), back: ev.status === 'ok' ? OK : ev.status === 'error' ? ERR : undefined, dur: 0.6 });
+      pulses.current.push({ pts, seg: 0, t: 0, color: status.outbound === 'error' ? ERR.clone() : status.outbound === 'ok' ? OK.clone().multiplyScalar(2.4) : allAgents ? col('agents').multiplyScalar(2.2) : new THREE.Color(1.6, 1.8, 2.4), back: status.back === 'ok' ? OK : status.back === 'error' ? ERR : undefined, dur: 0.6 });
       if (pulses.current.length > MAX_PULSES) pulses.current.splice(0, pulses.current.length - MAX_PULSES);
     }
     const pm = pulseMesh.current; let pk = 0;
     for (let j = pulses.current.length - 1; j >= 0; j--) {
       const p = pulses.current[j]; p.t += dt / p.dur;
-      if (p.t >= 1) { act[idx.get(p.pts[p.seg + 1])!] = 1; p.seg++; p.t = 0;
+      if (p.t >= 1) { if (!liveActivity) act[idx.get(p.pts[p.seg + 1])!] = 1; p.seg++; p.t = 0;
         if (p.seg >= p.pts.length - 1) { if (p.back) pulses.current[j] = { pts: [...p.pts].reverse(), seg: 0, t: 0, color: p.back.clone().multiplyScalar(2.4), dur: p.dur * 0.8 }; else pulses.current.splice(j, 1); continue; } }
       const a = idx.get(p.pts[p.seg])!, b = idx.get(p.pts[p.seg + 1])!; const e = edgeKey.get(a < b ? `${a}|${b}` : `${b}|${a}`); const inter = e !== undefined ? edgeList[e].inter : nodes[a].cluster !== nodes[b].cluster;
       if (pm) for (let k = 0; k < TRAIL && pk < MAX_PULSES * TRAIL; k++) { curve(a, b, Math.max(0, p.t - k * 0.04), tmp.v, inter); tmp.s.setScalar(0.42 - k * 0.06); tmp.m.compose(tmp.v, tmp.q, tmp.s); pm.setMatrixAt(pk, tmp.m); tmp.c.copy(p.color).multiplyScalar(1 - k / TRAIL); pm.setColorAt(pk, tmp.c); pk++; }
@@ -248,7 +253,7 @@ export function hasWebGL(): boolean {
  * automatically when WebGL is unavailable. Real-only impulses; labels only on live nodes; logos on MCP/connections.
  */
 export function NeuralClusters(props: NeuralClustersProps) {
-  const { nodes, edges = [], events = [], activeIds = [], mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini, agentHref, onOpenAgent } = props;
+  const { nodes, edges = EMPTY_EDGES, events = EMPTY_EVENTS, activeIds = EMPTY_IDS, activeEdges = EMPTY_EDGES, liveActivity = false, mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini, agentHref, onOpenAgent } = props;
   const [gl, setGl] = useState<boolean | null>(null);
   useEffect(() => { setGl(hasWebGL()); }, []);
   const wrap = useRef<HTMLDivElement>(null);
@@ -263,14 +268,16 @@ export function NeuralClusters(props: NeuralClustersProps) {
   // OrbitControls permits up to 4× focus distance; keep clipping/fog beyond that navigable envelope.
   const navigationFar = Math.max(2400, networkWidth * 12);
   const navigationFogNear = Math.max(800, networkWidth * 8);
-  const active = useMemo(() => withAncestors(activeIds, nodes), [activeIds, nodes]);
+  const active = useMemo(() => activityNodes(activeIds, nodes, liveActivity), [activeIds, nodes, liveActivity]);
+  const exactEdges = useMemo(() => new Set(activeEdges.map((e) => activityEdgeKey(e.from, e.to))), [activeEdges]);
   const hot = useRef(new Map<string, number>()); const queue = useRef<ClusterEvent[]>([]); const seen = useRef(new Set<string>());
   const [hotTick, setHotTick] = useState(0);
   useEffect(() => {
+    if (liveActivity && events.length === 0) { queue.current = []; hot.current.clear(); setHotTick((x) => x + 1); return; }
     let fresh = false; const now = performance.now();
-    events.forEach((e) => { if (seen.current.has(e.id)) return; seen.current.add(e.id); queue.current.push(e); e.path.forEach((id) => hot.current.set(id, now + 5000)); fresh = true; });
+    events.forEach((e) => { if (liveActivity && !activityEventAllowed(e, nodes, edges)) return; if (seen.current.has(e.id)) return; seen.current.add(e.id); queue.current.push(e); e.path.forEach((id) => hot.current.set(id, now + 5000)); fresh = true; });
     if (fresh) { setHotTick((x) => x + 1); const t = setTimeout(() => setHotTick((x) => x + 1), 5100); return () => clearTimeout(t); }
-  }, [events]);
+  }, [events, liveActivity, nodes, edges]);
   const labels = useMemo(() => { const now = performance.now(); const s = new Set<string>(active); hot.current.forEach((until, id) => { if (until > now) s.add(id); });
     nodes.forEach((n) => { if (n.cluster === 'agents' && !n.parentId && !n.detached) s.add(n.id); }); return s; // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, nodes, hotTick]);
@@ -302,7 +309,7 @@ export function NeuralClusters(props: NeuralClustersProps) {
         <Canvas dpr={mini ? [1, 1.25] : [1, 1.75]} frameloop={visible ? 'always' : 'never'} gl={{ antialias: !mini, powerPreference: 'high-performance', alpha: true }}
           camera={{ fov: 42, near: 0.5, far: navigationFar, position: [0, 30, 90] }} onPointerMissed={(e) => { if (dragged.current || e.type !== 'click') return; if (!mini) { setFocus(null); setSel(null); } else onNodeClick?.(nodes[0]); }}>
           <fog attach="fog" args={['#0b0c1d', navigationFogNear, navigationFar]} />
-          <Scene nodes={nodes} edges={edges} layout={layout} active={active} hot={hot} queue={queue} focus={focus} mini={mini} labels={shownLabels} labelEls={labelEls} sel={sel} hood={hood} viewRevision={viewRevision} dragged={dragged}
+          <Scene liveActivity={liveActivity} activeEdges={exactEdges} clearActivity={events.length === 0} nodes={nodes} edges={edges} layout={layout} active={active} hot={hot} queue={queue} focus={focus} mini={mini} labels={shownLabels} labelEls={labelEls} sel={sel} hood={hood} viewRevision={viewRevision} dragged={dragged}
             onHover={(n, x, y) => { if (mini) return; setTip(n ? { n, x, y } : null); if (wrap.current) wrap.current.style.cursor = n ? 'pointer' : 'default'; }}
             onPick={(n) => { if (mini) { onNodeClick?.(n); return; } if (n.cluster === 'agents') { selectAgent(n.id); return; } setSel(null); setFocus(n.cluster); setViewRevision((v) => v + 1); onNodeClick?.(n); }} />
           {!mini && (

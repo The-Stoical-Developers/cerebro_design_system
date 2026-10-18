@@ -36,13 +36,17 @@ export interface ClusterEvent {
   id: string;
   /** Node ids the impulse travels through, e.g. [agent, tool, mcp, connection]. */
   path: string[];
-  /** start: outbound only · ok/error: outbound then result flows back (green / red). */
+  /** In liveActivity mode every status travels once along path; ok/error choose green/red. Legacy mode also generates a return. */
   status?: 'start' | 'ok' | 'error';
 }
 export interface NeuralClustersProps {
   nodes: ClusterNode[]; edges?: ClusterEdge[]; events?: ClusterEvent[];
-  /** Nodes that are live right now (e.g. running agents). Their agent ancestors light up too. */
+  /** Nodes that are live right now. Ancestors also light up only in legacy mode. */
   activeIds?: string[];
+  /** Render only observed activity, without inferred ancestors or synthetic return pulses. */
+  liveActivity?: boolean;
+  /** Exact currently active links. Used only with liveActivity; direction is supplied by events. */
+  activeEdges?: ClusterEdge[];
   mini?: boolean; height?: number | string; className?: string; style?: CSSProperties;
   onNodeClick?: (n: ClusterNode) => void;
   clusterLabels?: Partial<Record<ClusterKind, string>>;
@@ -52,6 +56,10 @@ export interface NeuralClustersProps {
   /** 3D: called when the "ver ficha" button is activated (use for client-side routing; default navigation is prevented). */
   onOpenAgent?: (n: ClusterNode) => void;
 }
+
+const EMPTY_EDGES: ClusterEdge[] = [];
+const EMPTY_EVENTS: ClusterEvent[] = [];
+const EMPTY_IDS: string[] = [];
 
 export const CLUSTER_ORDER: ClusterKind[] = ['agents', 'read', 'write', 'mcp', 'connections'];
 export const DEFAULT_CLUSTER_LABELS: Record<ClusterKind, string> = {
@@ -86,6 +94,23 @@ export function withAncestors(ids: Iterable<string>, nodes: ClusterNode[]): Set<
   const out = new Set<string>();
   for (const id of ids) { let c: string | null = id; let g = 0; while (c && !out.has(c) && g++ < 64) { out.add(c); c = par.get(c) ?? null; } }
   return out;
+}
+
+/** Shared activity semantics for both renderers. Edge keys are undirected because results reverse the path. */
+export const activityEdgeKey = (from: string, to: string): string => JSON.stringify([from, to].sort());
+export function activityNodes(ids: string[], nodes: ClusterNode[], liveActivity: boolean): Set<string> {
+  return liveActivity ? new Set(ids) : withAncestors(ids, nodes);
+}
+export function activityEdgeIsHot(from: string, to: string, active: Set<string>, exactEdges: Set<string>, liveActivity: boolean, transient: boolean): boolean {
+  return liveActivity ? exactEdges.has(activityEdgeKey(from, to)) : transient || (active.has(from) && active.has(to));
+}
+export function activityEventAllowed(event: ClusterEvent, nodes: ClusterNode[], edges: ClusterEdge[]): boolean {
+  const ids = new Set(nodes.map((n) => n.id));
+  const links = new Set(edges.map((e) => activityEdgeKey(e.from, e.to)));
+  return event.path.length > 0 && event.path.every((id, i) => ids.has(id) && (i === 0 || links.has(activityEdgeKey(event.path[i - 1], id))));
+}
+export function activityPulseStatus(status: ClusterEvent['status'], liveActivity: boolean): { outbound: ClusterEvent['status']; back: ClusterEvent['status'] } {
+  return { outbound: status === 'error' || (liveActivity && status === 'ok') ? status : 'start', back: liveActivity || status === 'start' ? undefined : status };
 }
 
 /** Human lineage for tooltips: agent chain to the root, or who uses a tool/MCP/connection. Exported for tests. */
@@ -183,15 +208,17 @@ interface E { a: N; b: N; inter: boolean; ph: number; hotUntil: number }
 interface Pulse { pts: N[]; seg: number; t: number; col: RGB; back?: RGB; dur: number }
 
 /** 2D canvas fallback of the root-cluster network (used when WebGL is unavailable). */
-export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [], mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini }: NeuralClustersProps) {
+export function NeuralClusters2D({ nodes, edges = EMPTY_EDGES, events = EMPTY_EVENTS, activeIds = EMPTY_IDS, activeEdges = EMPTY_EDGES, liveActivity = false, mini = false, height = '100%', className, style, onNodeClick, clusterLabels, showLegend = !mini }: NeuralClustersProps) {
   const cvRef = useRef<HTMLCanvasElement>(null); const wrapRef = useRef<HTMLDivElement>(null);
   const fullscreen = useNeuralFullscreen(wrapRef);
   const [tip, setTip] = useState<{ x: number; y: number; n: ClusterNode } | null>(null);
   const [focus, setFocus] = useState<ClusterKind | null>(null);
   const labels = { ...DEFAULT_CLUSTER_LABELS, ...clusterLabels };
-  const active = useMemo(() => withAncestors(activeIds, nodes), [activeIds, nodes]);
-  const engine = useRef<{ play: (e: ClusterEvent) => void; setActive: (s: Set<string>) => void; setFocus: (k: ClusterKind | null) => void } | null>(null);
+  const active = useMemo(() => activityNodes(activeIds, nodes, liveActivity), [activeIds, nodes, liveActivity]);
+  const engine = useRef<{ play: (e: ClusterEvent) => void; setActive: (s: Set<string>) => void; setFocus: (k: ClusterKind | null) => void; clear: () => void } | null>(null);
   const seen = useRef(new Set<string>());
+  const activeEdgesRef = useRef(new Set<string>());
+  activeEdgesRef.current = new Set(activeEdges.map((e) => activityEdgeKey(e.from, e.to)));
   const clickRef = useRef(onNodeClick); clickRef.current = onNodeClick;
   const focusRef = useRef(focus); focusRef.current = focus;
   const activeRef = useRef(active); activeRef.current = active;
@@ -255,16 +282,18 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
       target = { k: kk, x: W / 2 - ((x0 + x1) / 2) * kk, y: H / 2 - ((y0 + y1) / 2) * kk };
     };
     const play = (ev: ClusterEvent) => {
+      if (liveActivity && !activityEventAllowed(ev, nodes, edges)) return;
+      const status = activityPulseStatus(ev.status, liveActivity);
       const pts = ev.path.map((id) => byId.get(id)).filter((n): n is N => !!n); if (!pts.length) return;
       const now = performance.now();
       const col = pts[0].cluster === 'agents' && pts.every((p) => p.cluster === 'agents') ? CLUSTER_COLORS.agents : [180, 200, 255] as RGB;
       pts.forEach((p) => { p.hotUntil = Math.max(p.hotUntil, now + 5000); });
-      for (let i = 1; i < pts.length; i++) { const e = edgeBetween(pts[i - 1], pts[i]); if (e) e.hotUntil = now + 5000; }
-      if (pts.length === 1) { pts[0].act = 1; return; }
-      pulses.push({ pts, seg: 0, t: 0, col: ev.status === 'error' ? ERR : col, back: ev.status === 'ok' ? OK : ev.status === 'error' ? ERR : undefined, dur: mini ? 520 : 650 });
+      for (let i = 1; i < pts.length; i++) { const e = edgeBetween(pts[i - 1], pts[i]); if (e && !liveActivity) e.hotUntil = now + 5000; }
+      if (pts.length === 1) { if (!liveActivity) pts[0].act = 1; return; }
+      pulses.push({ pts, seg: 0, t: 0, col: status.outbound === 'error' ? ERR : status.outbound === 'ok' ? OK : col, back: status.back === 'ok' ? OK : status.back === 'error' ? ERR : undefined, dur: mini ? 520 : 650 });
       if (pulses.length > 160) pulses.splice(0, pulses.length - 160);
     };
-    engine.current = { play, setActive: (s) => { act = s; }, setFocus: setFocusK };
+    engine.current = { play, setActive: (s) => { act = s; }, setFocus: setFocusK, clear: () => { pulses.length = 0; ns.forEach((n) => { n.act = 0; n.hotUntil = 0; n.lab = 0; }); es.forEach((e) => { e.hotUntil = 0; }); } };
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(resize) : null; ro?.observe(cv); resize();
     const io = typeof IntersectionObserver !== 'undefined' ? new IntersectionObserver(([en]) => { visible = en.isIntersecting; }) : null; io?.observe(cv);
     const ctrl = (a: N, b: N, e: E, t: number): [number, number] => {
@@ -296,7 +325,7 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
       { ctx.strokeStyle = rgba(CLUSTER_COLORS.agents, 0.1); ctx.lineWidth = dpr; ctx.setLineDash([2 * dpr, 6 * dpr]); rings.forEach((r) => { ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, 6.283); ctx.stroke(); }); ctx.setLineDash([]); }
       // edges
       es.forEach((e) => {
-        const hot = e.hotUntil > t || (act.has(e.a.id) && act.has(e.b.id));
+        const hot = activityEdgeIsHot(e.a.id, e.b.id, act, activeEdgesRef.current, liveActivity, e.hotUntil > t);
         const c = ctrl(e.a, e.b, e, t); const col = e.inter ? mix(e.a.col, e.b.col, 0.5) : e.a.col;
         ctx.strokeStyle = rgba(col, hot ? 0.55 : e.inter ? 0.05 : 0.14); ctx.lineWidth = (hot ? 1.6 : 0.8) * dpr;
         ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.quadraticCurveTo(c[0], c[1], e.b.x, e.b.y); ctx.stroke();
@@ -306,7 +335,7 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
       for (let i = pulses.length - 1; i >= 0; i--) {
         const p = pulses[i]; p.t += dt / p.dur;
         if (p.t >= 1) {
-          p.pts[p.seg + 1].act = 1; p.pts[p.seg + 1].col = p.col === ERR ? ERR : p.pts[p.seg + 1].col; p.seg++; p.t = 0;
+          if (!liveActivity) p.pts[p.seg + 1].act = 1; p.pts[p.seg + 1].col = p.col === ERR ? ERR : p.pts[p.seg + 1].col; p.seg++; p.t = 0;
           if (p.seg >= p.pts.length - 1) { if (p.back) { pulses[i] = { pts: [...p.pts].reverse(), seg: 0, t: 0, col: p.back, dur: p.dur * 0.8 }; } else pulses.splice(i, 1); continue; }
         }
         const a = p.pts[p.seg], b = p.pts[p.seg + 1]; const e = edgeBetween(a, b);
@@ -319,12 +348,12 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
       }
       // nodes
       ns.forEach((n) => {
-        const on = act.has(n.id); const glow = Math.max(n.act, on ? 0.55 + (reduce ? 0 : 0.15 * Math.sin(t * 0.004 + n.ph)) : 0, n.hotUntil > t ? 0.35 : 0);
+        const on = act.has(n.id); const glow = Math.max(n.act, on ? 0.55 + (reduce ? 0 : 0.15 * Math.sin(t * 0.004 + n.ph)) : 0, !liveActivity && n.hotUntil > t ? 0.35 : 0);
         if (glow > 0.02) { const s = n.r * (5 + glow * 5); ctx.globalAlpha = glow; ctx.drawImage(sprite(n.act > 0.3 ? n.col : CLUSTER_COLORS[n.cluster]), n.x - s / 2, n.y - s / 2, s, s); ctx.globalAlpha = 1; }
       });
       ctx.globalCompositeOperation = 'source-over';
       ns.forEach((n) => {
-        const base = CLUSTER_COLORS[n.cluster]; const on = act.has(n.id) || n.hotUntil > t;
+        const base = CLUSTER_COLORS[n.cluster]; const on = act.has(n.id) || (!liveActivity && n.hotUntil > t);
         if (n.cluster === 'connections' || n.cluster === 'mcp') {
           ctx.fillStyle = on ? 'rgba(20,22,40,.95)' : 'rgba(20,22,40,.75)'; ctx.strokeStyle = rgba(base, on ? 0.9 : 0.35); ctx.lineWidth = dpr * (on ? 1.6 : 1);
           ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, 6.283); ctx.fill(); ctx.stroke();
@@ -366,14 +395,15 @@ export function NeuralClusters2D({ nodes, edges = [], events = [], activeIds = [
     cv.addEventListener('mousemove', onMove); cv.addEventListener('click', onClick); cv.addEventListener('mouseleave', onLeave);
     return () => { cv.removeEventListener('pointerdown', onDown); cv.removeEventListener('pointerup', onUp); cv.removeEventListener('pointercancel', onUp); cv.removeEventListener('wheel', onWheel); cv.removeEventListener('contextmenu', onContextMenu); cancelAnimationFrame(raf); ro?.disconnect(); io?.disconnect(); cv.removeEventListener('mousemove', onMove); cv.removeEventListener('click', onClick); cv.removeEventListener('mouseleave', onLeave); engine.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, mini]);
+  }, [nodes, edges, mini, liveActivity]);
 
   useEffect(() => { engine.current?.setActive(active); }, [active]);
   useEffect(() => { engine.current?.setFocus(focus); }, [focus]);
   useEffect(() => {
+    if (liveActivity && events.length === 0) engine.current?.clear();
     events.forEach((e) => { if (seen.current.has(e.id)) return; seen.current.add(e.id); engine.current?.play(e); });
     if (seen.current.size > 5000) seen.current = new Set(events.map((e) => e.id));
-  }, [events]);
+  }, [events, liveActivity, nodes, edges, mini]);
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') setFocus(null); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
 
   const lineage = tip ? lineageOf(tip.n.id, nodes, edges) : [];
